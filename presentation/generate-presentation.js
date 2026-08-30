@@ -126,47 +126,113 @@ function panel(s, x, y, w, h, fill = C.panel) {
   });
 }
 
+/* ---- text metrics -------------------------------------------------------
+ * PowerPoint does not clip an overflowing text box, so anything that does not
+ * fit simply spills over whatever is underneath. These estimate the rendered
+ * size well enough to pick a font that stays inside its box. Segoe UI averages
+ * roughly 0.50 em per character (0.55 when bold); the 1.06 factor covers the
+ * ragged edge left by word wrapping.
+ */
+
+function textWidthIn(text, fontPt, { bold = false, charSpacing = 0 } = {}) {
+  const em = bold ? 0.55 : 0.5;
+  return (text.length * (fontPt * em + charSpacing)) / 72;
+}
+
+function lineCount(text, boxW, fontPt, opts) {
+  return Math.max(1, Math.ceil((textWidthIn(text, fontPt, opts) * 1.06) / boxW));
+}
+
+/** Height a paragraph list needs, in inches. */
+function blockHeight(texts, boxW, fontPt, opts) {
+  const lineH = (fontPt * 1.42) / 72;
+  return texts.reduce((sum, t) => sum + lineCount(t, boxW, fontPt, opts) * lineH, 0);
+}
+
+const FONT_STEPS = [13.5, 13, 12.5, 12, 11.5, 11, 10.5, 10, 9.5, 9, 8.5, 8, 7.5, 7];
+
+/* Shared geometry for the five screenshot slides. The capture is 1.44:1, so a
+ * 6.35in image is 4.41in tall — that is the widest it can be and still leave
+ * room for its caption above the footer. */
+const SHOT_W = 6.35;
+const RX = 7.15;   // right-hand column x
+const RW = 5.67;   // right-hand column width
+
+/** Largest font from FONT_STEPS (at or below `max`) that fits the box. */
+function fitFont(texts, boxW, boxH, { max = 11.5, ...opts } = {}) {
+  const steps = FONT_STEPS.filter((f) => f <= max);
+  return steps.find((f) => blockHeight(texts, boxW, f, opts) <= boxH) ?? steps[steps.length - 1];
+}
+
+/** Largest font that keeps a single string on one line. */
+function fitOneLine(text, boxW, { max = 24, min = 9, bold = true, charSpacing = 0 } = {}) {
+  const steps = FONT_STEPS.concat([16, 18, 20, 22, 24, 26, 28])
+    .filter((f) => f <= max && f >= min)
+    .sort((a, b) => b - a);
+  return steps.find((f) => textWidthIn(text, f, { bold, charSpacing }) <= boxW) ?? min;
+}
+
 /** Big-number stat tile. */
 function stat(s, { x, y, w = 2.9, h = 1.35, label, value, note, color = C.ink }) {
   panel(s, x, y, w, h);
+  const inner = w - 0.36;
+
+  const labelPt = fitOneLine(label.toUpperCase(), inner, { max: 9, min: 6.5, bold: true, charSpacing: 0.8 });
   s.addText(label.toUpperCase(), {
-    x: x + 0.18, y: y + 0.14, w: w - 0.36, h: 0.24,
-    fontSize: 9, bold: true, color: C.faint, charSpacing: 1, fontFace: FONT,
+    x: x + 0.18, y: y + 0.13, w: inner, h: 0.24,
+    fontSize: labelPt, bold: true, color: C.faint, charSpacing: 0.8, fontFace: FONT, margin: 0,
   });
+
+  const valuePt = fitOneLine(String(value), inner, { max: 24, min: 11, bold: true });
   s.addText(String(value), {
-    x: x + 0.18, y: y + 0.38, w: w - 0.36, h: 0.5,
-    fontSize: 24, bold: true, color, fontFace: FONT,
+    x: x + 0.18, y: y + 0.4, w: inner, h: 0.46,
+    fontSize: valuePt, bold: true, color, fontFace: FONT, valign: 'middle', margin: 0,
   });
+
   if (note) {
+    const noteTop = y + 0.9;
+    const notePt = fitFont([note], inner, h - (noteTop - y) - 0.12, { max: 9.5 });
     s.addText(note, {
-      x: x + 0.18, y: y + 0.9, w: w - 0.36, h: 0.38,
-      fontSize: 9.5, color: C.muted, fontFace: FONT, valign: 'top',
+      x: x + 0.18, y: noteTop, w: inner, h: h - (noteTop - y) - 0.12,
+      fontSize: notePt, color: C.muted, fontFace: FONT, valign: 'top',
+      lineSpacing: notePt * 1.25, margin: 0,
     });
   }
+}
+
+/** A bullet list sized to fit the space it is given. */
+function fittedList(s, { x, y, w, h, items, color = C.muted, max = 11.5 }) {
+  const texts = items.map((t) => (typeof t === 'string' ? t : t.text));
+  // The hanging bullet costs roughly a quarter inch of usable width.
+  const textW = w - 0.28;
+  const pt = fitFont(texts, textW, h, { max });
+  s.addText(
+    texts.map((t) => ({ text: t, options: { bullet: { code: '2022' }, breakLine: true } })),
+    {
+      x, y, w, h,
+      fontSize: pt, color, fontFace: FONT,
+      lineSpacing: pt * 1.32, valign: 'top', margin: 0,
+    },
+  );
+  return pt;
 }
 
 /** Bulleted body copy inside a panel. */
 function bullets(s, { x, y, w, h, title, items, accent = C.blue }) {
   panel(s, x, y, w, h);
-  let cursor = y + 0.2;
+  let cursor = y + 0.18;
   if (title) {
-    s.addShape(pptx.ShapeType.rect, { x, y: y + 0.22, w: 0.05, h: 0.28, fill: { color: accent } });
+    const titlePt = fitOneLine(title, w - 0.46, { max: 13.5, min: 10, bold: true });
+    s.addShape(pptx.ShapeType.rect, { x, y: y + 0.2, w: 0.05, h: 0.28, fill: { color: accent } });
     s.addText(title, {
       x: x + 0.24, y: cursor, w: w - 0.44, h: 0.3,
-      fontSize: 13.5, bold: true, color: C.ink, fontFace: FONT,
+      fontSize: titlePt, bold: true, color: C.ink, fontFace: FONT, margin: 0,
     });
-    cursor += 0.44;
+    cursor += 0.42;
   }
-  s.addText(
-    items.map((t) => ({
-      text: typeof t === 'string' ? t : t.text,
-      options: { bullet: { code: '2022' }, breakLine: true },
-    })),
-    {
-      x: x + 0.28, y: cursor, w: w - 0.5, h: h - (cursor - y) - 0.16,
-      fontSize: 11, color: C.muted, fontFace: FONT, lineSpacing: 18, valign: 'top',
-    },
-  );
+  fittedList(s, {
+    x: x + 0.26, y: cursor, w: w - 0.48, h: h - (cursor - y) - 0.14, items,
+  });
 }
 
 /** Screenshot with a caption strip underneath; returns the y below it. */
@@ -316,32 +382,38 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   ];
 
   const boxW = 2.3;
+  const stepTop = 2.05;
+  const stepH = 2.5;
   steps.forEach((st, i) => {
     const x = 0.55 + i * 2.48;
-    panel(s, x, 2.15, boxW, 2.6);
-    s.addShape(pptx.ShapeType.ellipse, { x: x + 0.18, y: 2.35, w: 0.42, h: 0.42, fill: { color: st.c } });
+    panel(s, x, stepTop, boxW, stepH);
+    s.addShape(pptx.ShapeType.ellipse, { x: x + 0.18, y: stepTop + 0.2, w: 0.4, h: 0.4, fill: { color: st.c } });
     s.addText(st.n, {
-      x: x + 0.18, y: 2.35, w: 0.42, h: 0.42,
+      x: x + 0.18, y: stepTop + 0.2, w: 0.4, h: 0.4,
       fontSize: 13, bold: true, color: '0B1524', align: 'center', valign: 'middle', fontFace: FONT,
     });
     s.addText(st.t, {
-      x: x + 0.18, y: 2.88, w: boxW - 0.36, h: 0.34,
-      fontSize: 14.5, bold: true, color: C.ink, fontFace: FONT,
+      x: x + 0.18, y: stepTop + 0.7, w: boxW - 0.36, h: 0.32,
+      fontSize: fitOneLine(st.t, boxW - 0.36, { max: 14.5, min: 11, bold: true }),
+      bold: true, color: C.ink, fontFace: FONT, margin: 0,
     });
+    const descTop = stepTop + 1.06;
+    const descH = stepH - (descTop - stepTop) - 0.16;
+    const descPt = fitFont([st.d], boxW - 0.36, descH, { max: 10 });
     s.addText(st.d, {
-      x: x + 0.18, y: 3.26, w: boxW - 0.36, h: 1.35,
-      fontSize: 10, color: C.muted, fontFace: FONT, valign: 'top', lineSpacing: 14,
+      x: x + 0.18, y: descTop, w: boxW - 0.36, h: descH,
+      fontSize: descPt, color: C.muted, fontFace: FONT, valign: 'top', lineSpacing: descPt * 1.3, margin: 0,
     });
     if (i < steps.length - 1) {
       s.addText('▶', {
-        x: x + boxW + 0.02, y: 3.3, w: 0.42, h: 0.28,
+        x: x + boxW + 0.02, y: stepTop + 1.1, w: 0.42, h: 0.28,
         fontSize: 11, color: C.faint, align: 'center', fontFace: FONT,
       });
     }
   });
 
   bullets(s, {
-    x: 0.55, y: 4.95, w: 6.05, h: 1.55, title: 'Hard constraints, never relaxed', accent: C.red,
+    x: 0.55, y: 4.75, w: 6.05, h: 1.6, title: 'Hard constraints, never relaxed', accent: C.red,
     items: [
       'A block may never overlap a protected train path plus its safety buffer.',
       'Traction work without power isolation, S&T work without a disconnection: rejected.',
@@ -349,7 +421,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     ],
   });
   bullets(s, {
-    x: 6.77, y: 4.95, w: 6.05, h: 1.55, title: 'Answers a judge can check live', accent: C.teal,
+    x: 6.77, y: 4.75, w: 6.05, h: 1.6, title: 'Answers a judge can check live', accent: C.teal,
     items: [
       'Weights, train buffer and slot size each live in one config object — change one, re-run.',
       'Every adapter is swappable (MOCK / JSON / REST) if a real feed is unavailable.',
@@ -368,7 +440,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   });
 
   screenshot(s, {
-    file: 'sources.png', x: 0.55, y, w: 7.4,
+    file: 'sources.png', x: 0.55, y, w: SHOT_W,
     caption: 'Data sources — 6/6 sources current, 2,489 records, 0 requiring attention',
   });
 
@@ -380,24 +452,30 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     ['TIMETABLE', 'Train Time Table', '1,007', C.green],
     ['GOODS_FORECAST', 'Goods-train forecast', '980', C.red],
   ];
-  panel(s, 8.25, y, 4.57, 3.5);
+  panel(s, RX, y, RW, 3.15);
   s.addText('RECORDS LOADED', {
-    x: 8.5, y: y + 0.16, w: 4.05, h: 0.26,
-    fontSize: 10, bold: true, color: C.faint, charSpacing: 1.2, fontFace: FONT,
+    x: RX + 0.25, y: y + 0.15, w: RW - 0.5, h: 0.26,
+    fontSize: 10, bold: true, color: C.faint, charSpacing: 1.2, fontFace: FONT, margin: 0,
   });
   feeds.forEach(([code, name, count, col], i) => {
-    const ry = y + 0.56 + i * 0.47;
-    s.addShape(pptx.ShapeType.rect, { x: 8.5, y: ry + 0.04, w: 0.05, h: 0.32, fill: { color: col } });
-    s.addText(code, { x: 8.68, y: ry, w: 2.6, h: 0.22, fontSize: 11, bold: true, color: C.ink, fontFace: FONT });
-    s.addText(name, { x: 8.68, y: ry + 0.19, w: 2.9, h: 0.2, fontSize: 8.5, color: C.faint, fontFace: FONT });
+    const ry = y + 0.55 + i * 0.42;
+    s.addShape(pptx.ShapeType.rect, { x: RX + 0.25, y: ry + 0.03, w: 0.05, h: 0.3, fill: { color: col } });
+    s.addText(code, {
+      x: RX + 0.42, y: ry, w: 2.6, h: 0.2,
+      fontSize: 10.5, bold: true, color: C.ink, fontFace: FONT, margin: 0,
+    });
+    s.addText(name, {
+      x: RX + 0.42, y: ry + 0.18, w: 3.1, h: 0.18,
+      fontSize: 8, color: C.faint, fontFace: FONT, margin: 0,
+    });
     s.addText(count, {
-      x: 11.55, y: ry + 0.02, w: 1.0, h: 0.3,
-      fontSize: 13, bold: true, color: col, align: 'right', fontFace: FONT,
+      x: RX + 3.6, y: ry + 0.02, w: 1.8, h: 0.28,
+      fontSize: 12.5, bold: true, color: col, align: 'right', fontFace: FONT, margin: 0,
     });
   });
 
   bullets(s, {
-    x: 8.25, y: y + 3.65, w: 4.57, h: 1.75, title: 'What each adapter guarantees', accent: C.blue,
+    x: RX, y: y + 3.3, w: RW, h: 1.42, title: 'What each adapter guarantees', accent: C.blue,
     items: [
       'Zod-validated input; accepted and rejected counts recorded per sync run.',
       'Idempotent upsert — re-loading a feed changes nothing.',
@@ -416,17 +494,18 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   });
 
   screenshot(s, {
-    file: 'maintenance.png', x: 0.55, y, w: 7.4,
+    file: 'maintenance.png', x: 0.55, y, w: SHOT_W,
     caption: 'Maintenance backlog — 187 tasks, 29 critical, 38 overdue, all 187 scored',
   });
 
-  panel(s, 8.25, y, 4.57, 2.4);
+  panel(s, RX, y, RW, 2.45);
   s.addText('LEARNED MODEL (LEVEL 2)', {
-    x: 8.5, y: y + 0.16, w: 4.05, h: 0.26,
-    fontSize: 10, bold: true, color: C.violet, charSpacing: 1.2, fontFace: FONT,
+    x: RX + 0.25, y: y + 0.15, w: RW - 0.5, h: 0.26,
+    fontSize: 10, bold: true, color: C.violet, charSpacing: 1.2, fontFace: FONT, margin: 0,
   });
   s.addText('Logistic regression in plain JavaScript, trained on maintenance history with a time-based split.', {
-    x: 8.5, y: y + 0.44, w: 4.05, h: 0.5, fontSize: 10.5, color: C.muted, fontFace: FONT,
+    x: RX + 0.25, y: y + 0.44, w: RW - 0.5, h: 0.44,
+    fontSize: 10.5, color: C.muted, fontFace: FONT, margin: 0, lineSpacing: 13,
   });
   const mlRows = [
     ['Validation accuracy', pct(ml.validationAccuracy)],
@@ -435,29 +514,30 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     ['Train / validation rows', `${ml.trainRows} / ${ml.validationRows}`],
   ];
   mlRows.forEach(([k, v], i) => {
-    const ry = y + 1.02 + i * 0.32;
-    s.addText(k, { x: 8.5, y: ry, w: 2.9, h: 0.28, fontSize: 10.5, color: C.muted, fontFace: FONT });
+    const ry = y + 0.94 + i * 0.29;
+    s.addText(k, {
+      x: RX + 0.25, y: ry, w: 3.0, h: 0.26,
+      fontSize: 10.5, color: C.muted, fontFace: FONT, margin: 0,
+    });
     s.addText(v, {
-      x: 11.25, y: ry, w: 1.3, h: 0.28,
-      fontSize: 10.5, bold: true, color: C.ink, align: 'right', fontFace: FONT,
+      x: RX + 3.3, y: ry, w: 2.12, h: 0.26,
+      fontSize: 10.5, bold: true, color: C.ink, align: 'right', fontFace: FONT, margin: 0,
     });
   });
   s.addText(
-    `Trained on synthetic history — reported as ${riskModel.dataOrigin}, never as production accuracy.`,
-    { x: 8.5, y: y + 2.04, w: 4.05, h: 0.28, fontSize: 8.5, color: C.faint, italic: true, fontFace: FONT },
+    `Trained on synthetic history — reported as ${riskModel.dataOrigin}, not production accuracy.`,
+    {
+      x: RX + 0.25, y: y + 2.11, w: RW - 0.5, h: 0.26,
+      fontSize: 8.5, color: C.faint, italic: true, fontFace: FONT, margin: 0,
+    },
   );
 
   bullets(s, {
-    x: 8.25, y: y + 2.55, w: 4.57, h: 1.6, title: 'Rule fallback (Level 1)', accent: C.blue,
+    x: RX, y: y + 2.6, w: RW, h: 2.12, title: 'Fallbacks that keep it honest', accent: C.blue,
     items: [
-      'Weighted sum of severity, asset criticality, overdue days, safety flag, speed restriction, corridor importance and repeat defects.',
+      'Rule engine (Level 1): weighted sum of severity, asset criticality, overdue days, safety flag, speed restriction, corridor importance and repeat defects.',
       'Used whenever history is thin or the model fails to load — always labelled RULE_FALLBACK.',
-    ],
-  });
-  bullets(s, {
-    x: 8.25, y: y + 4.25, w: 4.57, h: 1.15, title: 'Duration engine', accent: C.teal,
-    items: [
-      'Historical median and P90 per task type and department.',
+      'Duration engine: historical median and P90 per task type and department.',
       'P90 drives feasibility; requested, predicted and sample count are all shown.',
     ],
   });
@@ -473,12 +553,12 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   });
 
   screenshot(s, {
-    file: 'planner.png', x: 0.55, y, w: 7.4,
+    file: 'planner.png', x: 0.55, y, w: SHOT_W,
     caption: 'Block planner — horizon, corridor scope, and the five stages that run on Generate',
   });
 
   bullets(s, {
-    x: 8.25, y, w: 4.57, h: 2.4, title: 'Interval arithmetic, unit-tested', accent: C.teal,
+    x: RX, y, w: RW, h: 2.2, title: 'Interval arithmetic, unit-tested', accent: C.teal,
     items: [
       'No overlap, full overlap, partial at start, partial at end.',
       'One train splitting a window; several trains splitting a window.',
@@ -486,10 +566,10 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     ],
   });
 
-  panel(s, 8.25, y + 2.55, 4.57, 2.85);
+  panel(s, RX, y + 2.35, RW, 2.37);
   s.addText('WHY A TASK GETS REJECTED', {
-    x: 8.5, y: y + 2.72, w: 4.05, h: 0.26,
-    fontSize: 10, bold: true, color: C.amber, charSpacing: 1.2, fontFace: FONT,
+    x: RX + 0.25, y: y + 2.5, w: RW - 0.5, h: 0.26,
+    fontSize: 10, bold: true, color: C.amber, charSpacing: 1.2, fontFace: FONT, margin: 0,
   });
   const reasons = [
     'NO_BLOCK_WINDOW',
@@ -500,12 +580,10 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     'INCOMPATIBLE_TASK',
     'OUTSIDE_HORIZON',
   ];
-  s.addText(
-    reasons.map((r) => ({ text: r, options: { bullet: { code: '2022' }, breakLine: true } })),
-    { x: 8.62, y: y + 3.04, w: 4.0, h: 2.0, fontSize: 10.5, color: C.muted, fontFace: FONT, lineSpacing: 16 },
-  );
+  fittedList(s, { x: RX + 0.32, y: y + 2.8, w: RW - 0.6, h: 1.5, items: reasons, max: 10 });
   s.addText('Every unscheduled task names one. Nothing disappears silently.', {
-    x: 8.5, y: y + 5.02, w: 4.05, h: 0.3, fontSize: 9, color: C.faint, italic: true, fontFace: FONT,
+    x: RX + 0.25, y: y + 4.38, w: RW - 0.5, h: 0.26,
+    fontSize: 9, color: C.faint, italic: true, fontFace: FONT, margin: 0,
   });
 }
 
@@ -519,7 +597,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   });
 
   screenshot(s, {
-    file: 'plan.png', x: 0.55, y, w: 7.4,
+    file: 'plan.png', x: 0.55, y, w: SHOT_W,
     caption: 'Block plan — weekly horizon, OPTIMAL, 25 of 109 jobs placed across 18 blocks',
   });
 
@@ -531,13 +609,13 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   ];
   tiles.forEach((t, i) => stat(s, {
     ...t,
-    x: 8.25 + (i % 2) * 2.37,
-    y: y + Math.floor(i / 2) * 1.5,
-    w: 2.2, h: 1.4,
+    x: RX + (i % 2) * 2.9,
+    y: y + Math.floor(i / 2) * 1.42,
+    w: 2.77, h: 1.3,
   }));
 
   bullets(s, {
-    x: 8.25, y: y + 3.15, w: 4.57, h: 2.25, title: 'Honest about what was left out', accent: C.amber,
+    x: RX, y: y + 2.87, w: RW, h: 1.85, title: 'Honest about what was left out', accent: C.amber,
     items: [
       '84 jobs left out, each with a reason code attached.',
       '3 critical jobs still have no safe slot — the constraints were not relaxed to fit them in.',
@@ -556,7 +634,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   });
 
   screenshot(s, {
-    file: 'compare.png', x: 0.55, y, w: 7.4,
+    file: 'compare.png', x: 0.55, y, w: SHOT_W,
     caption: 'Monthly horizon — coordination improved 6 of 10 measures, and 2 got worse',
   });
 
@@ -564,10 +642,10 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     { label: 'Total block minutes', value: '−11,400', note: '7,030 coordinated vs 18,430 today', color: C.green },
     { label: 'Multi-department blocks', value: '+25', note: '25 coordinated vs 0 today', color: C.teal },
   ];
-  tiles.forEach((t, i) => stat(s, { ...t, x: 8.25 + i * 2.37, y, w: 2.2, h: 1.4 }));
+  tiles.forEach((t, i) => stat(s, { ...t, x: RX + i * 2.9, y, w: 2.77, h: 1.3 }));
 
   bullets(s, {
-    x: 8.25, y: y + 1.55, w: 4.57, h: 2.0, title: 'The trade-off we are not hiding', accent: C.amber,
+    x: RX, y: y + 1.45, w: RW, h: 1.55, title: 'The trade-off we are not hiding', accent: C.amber,
     items: [
       'The baseline places more tasks (145 vs 90) — by taking 2.6× more track time.',
       'Coordination buys back 11,400 block minutes and closes the line far less often.',
@@ -575,7 +653,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     ],
   });
   bullets(s, {
-    x: 8.25, y: y + 3.7, w: 4.57, h: 1.7, title: 'No number is hard-coded', accent: C.blue,
+    x: RX, y: y + 3.12, w: RW, h: 1.6, title: 'No number is hard-coded', accent: C.blue,
     items: [
       'Both plans are computed at run time from the same inputs.',
       'Change a weight or the train buffer, press Generate, and every figure moves.',
@@ -593,7 +671,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     sub: 'Both horizons share the same priority, candidate-window, validation, baseline and metrics modules.',
   });
 
-  panel(s, 0.55, 2.1, 6.05, 2.65);
+  panel(s, 0.55, 2.1, 6.05, 2.35);
   s.addText('WEEKLY', {
     x: 0.85, y: 2.3, w: 5.4, h: 0.3,
     fontSize: 12, bold: true, color: C.blue, charSpacing: 1.4, fontFace: FONT,
@@ -601,16 +679,16 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   s.addText('Seven days · 15-minute slots', {
     x: 0.85, y: 2.63, w: 5.4, h: 0.35, fontSize: 17, bold: true, color: C.ink, fontFace: FONT,
   });
-  s.addText(
-    [
+  fittedList(s, {
+    x: 1.0, y: 3.08, w: 5.35, h: 1.5,
+    items: [
       'Exact start and end times for every block.',
       'Detailed task-within-block timings, grouped by section.',
       'The short-term execution view for the district.',
-    ].map((t) => ({ text: t, options: { bullet: { code: '2022' }, breakLine: true } })),
-    { x: 1.0, y: 3.1, w: 5.2, h: 1.5, fontSize: 11.5, color: C.muted, fontFace: FONT, lineSpacing: 19 },
-  );
+    ],
+  });
 
-  panel(s, 6.77, 2.1, 6.05, 2.65);
+  panel(s, 6.77, 2.1, 6.05, 2.35);
   s.addText('MONTHLY', {
     x: 7.07, y: 2.3, w: 5.4, h: 0.3,
     fontSize: 12, bold: true, color: C.violet, charSpacing: 1.4, fontFace: FONT,
@@ -618,14 +696,14 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   s.addText('28–31 days · day-wise allocation', {
     x: 7.07, y: 2.63, w: 5.4, h: 0.35, fontSize: 17, bold: true, color: C.ink, fontFace: FONT,
   });
-  s.addText(
-    [
+  fittedList(s, {
+    x: 7.22, y: 3.08, w: 5.35, h: 1.5,
+    items: [
       'Coarser slots for longer-range coordination.',
       'Labelled a planning view, not a granted operational block.',
       'Long-term backlog burn-down across all three departments.',
-    ].map((t) => ({ text: t, options: { bullet: { code: '2022' }, breakLine: true } })),
-    { x: 7.22, y: 3.1, w: 5.2, h: 1.5, fontSize: 11.5, color: C.muted, fontFace: FONT, lineSpacing: 19 },
-  );
+    ],
+  });
 
   const tiles = [
     { label: 'Monthly backlog scheduled', value: '48%', note: '90 of 187 jobs placed', color: C.blue },
@@ -645,7 +723,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   });
 
   bullets(s, {
-    x: 0.55, y: 1.75, w: 4.0, h: 2.5, title: 'Frontend', accent: C.blue,
+    x: 0.55, y: 1.75, w: 4.0, h: 2.35, title: 'Frontend', accent: C.blue,
     items: [
       'Angular 22, standalone components, client-side rendering only.',
       'Signals for all state; Signal Forms; httpResource for reads.',
@@ -654,7 +732,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     ],
   });
   bullets(s, {
-    x: 4.68, y: 1.75, w: 4.0, h: 2.5, title: 'Backend', accent: C.teal,
+    x: 4.68, y: 1.75, w: 4.0, h: 2.35, title: 'Backend', accent: C.teal,
     items: [
       'Node.js 24, plain JavaScript, ES modules, Express 5.',
       'MySQL 8.0 with handwritten SQL and mysql2/promise — no ORM.',
@@ -663,7 +741,7 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
     ],
   });
   bullets(s, {
-    x: 8.81, y: 1.75, w: 4.0, h: 2.5, title: 'Planning core', accent: C.amber,
+    x: 8.81, y: 1.75, w: 4.0, h: 2.35, title: 'Planning core', accent: C.amber,
     items: [
       'glpk.js MILP behind a single solver adapter.',
       'Greedy fallback when the solver fails, reported as FALLBACK_FEASIBLE.',
@@ -673,14 +751,14 @@ function pill(s, { x, y, w, h = 0.36, text, color }) {
   });
 
   bullets(s, {
-    x: 0.55, y: 4.4, w: 6.05, h: 2.0, title: 'Tested where it matters', accent: C.green,
+    x: 0.55, y: 4.3, w: 6.05, h: 1.75, title: 'Tested where it matters', accent: C.green,
     items: [
       'Backend on node --test: adapter validation and idempotency, priority fallback, logistic regression on a known dataset, duration P90, interval subtraction, rejection reasons, baseline, GLPK, fallback, validation and metrics.',
       'Frontend on Vitest + jsdom via @angular/build:unit-test — every generated spec kept and extended.',
     ],
   });
   bullets(s, {
-    x: 6.77, y: 4.4, w: 6.05, h: 2.0, title: 'Deliberately out of scope', accent: C.faint,
+    x: 6.77, y: 4.3, w: 6.05, h: 1.75, title: 'Deliberately out of scope', accent: C.faint,
     items: [
       'No auth, RBAC, approval workflow or audit framework — this is decision support.',
       'No BDMS write-back: no official API contract is published, so we do not pretend to have one.',
