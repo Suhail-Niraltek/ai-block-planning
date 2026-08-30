@@ -1,0 +1,97 @@
+<!-- Scrim: only present on small screens, and only while the drawer is open. -->
+@if (layout.navOpen()) {
+  <div
+    class="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-[1px] lg:hidden"
+    (click)="close()"
+    aria-hidden="true"
+  ></div>
+}
+
+<nav
+  class="fixed inset-y-0 left-0 z-40 flex w-[17rem] flex-col overflow-hidden bg-[#081d30] text-slate-300 shadow-2xl transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:translate-x-0 lg:shadow-none"
+  [class.translate-x-0]="layout.navOpen()"
+  [class.-translate-x-full]="!layout.navOpen()"
+  aria-label="Primary navigation"
+>
+  <div class="flex items-center justify-between gap-2 px-5 pt-5 pb-4">
+    <div class="flex items-center gap-3">
+      <span
+        class="icon-frame grid h-10 w-10 place-items-center rounded-xl bg-sky-400 text-[#081d30] shadow-lg shadow-sky-950/30"
+      >
+        <app-icon name="train-front" size="h-[1.15rem] w-[1.15rem]" />
+      </span>
+      <div>
+        <p class="text-[15px] leading-tight font-bold tracking-tight text-white">RailPlan AI</p>
+        <p class="mt-0.5 text-[11px] leading-tight text-slate-400">Block planning workspace</p>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      (click)="close()"
+      class="-mr-1 rounded-md p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:outline-none lg:hidden"
+      aria-label="Close navigation"
+    >
+      <app-icon name="x" size="h-5 w-5" />
+    </button>
+  </div>
+
+  <p class="px-5 pt-5 pb-2 text-[10px] font-bold tracking-[0.18em] text-slate-500 uppercase">
+    Workflow
+  </p>
+
+  <ul class="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
+    @for (item of items; track item.path) {
+      <li>
+        <a
+          [routerLink]="item.path"
+          (click)="close()"
+          routerLinkActive="bg-sky-400/15 text-white before:bg-sky-400"
+          class="group relative flex items-center gap-3 rounded-xl px-3 py-3 text-slate-400 transition before:absolute before:top-2.5 before:bottom-2.5 before:left-0 before:w-[3px] before:rounded-r-full hover:bg-white/[0.05] hover:text-white focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:outline-none"
+        >
+          <span
+            class="icon-frame grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.04] transition group-hover:border-sky-400/40 group-hover:bg-white/[0.08]"
+          >
+            <app-icon [name]="item.icon" size="h-[17px] w-[17px]" />
+          </span>
+
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center gap-1.5">
+              <span class="truncate text-sm font-semibold">{{ item.label }}</span>
+
+              @if (item.step !== null && completedSteps().has(item.step)) {
+                <app-icon
+                  name="circle-check"
+                  size="h-3.5 w-3.5"
+                  [label]="'Step ' + item.step + ' done'"
+                />
+              }
+            </span>
+            <span
+              class="mt-0.5 block truncate text-[11px] text-slate-500 group-hover:text-slate-400"
+              >{{ item.description }}</span
+            >
+          </span>
+
+          @if (item.step !== null) {
+            <span
+              class="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-white/10 text-[10px] font-bold tabular-nums text-slate-400"
+              >{{ item.step }}</span
+            >
+          }
+        </a>
+      </li>
+    }
+  </ul>
+
+  <div class="m-3 rounded-xl border border-white/[0.07] bg-white/[0.04] p-3.5">
+    <div class="flex items-center gap-2 text-[11px] font-semibold text-sky-300">
+      <span class="h-1.5 w-1.5 rounded-full bg-sky-400"></span>
+      SIH26027 &middot; Demonstration
+    </div>
+    <p class="mt-2 flex items-start gap-2 text-[11px] leading-relaxed text-slate-500">
+      <app-icon name="info" size="h-3.5 w-3.5" class="mt-0.5 shrink-0" />
+      <span>Decision support only. Final blocks require authorised approval.</span>
+    </p>
+  </div>
+</nav>

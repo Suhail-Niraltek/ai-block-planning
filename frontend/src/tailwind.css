@@ -393,3 +393,17 @@
     --color-accent-900: var(--accent-900);
     --color-accent-950: var(--accent-950);
 }
+/*
+ * Rail domain tokens for SIH26027 block planning.
+ * These sit alongside the accent system above; the accent tokens drive the
+ * user-selectable theme, these name the fixed operational meanings.
+ */
+@theme {
+    --color-rail-navy: #0b1f33;
+    --color-rail-blue: #155e9a;
+    --color-rail-teal: #0f766e;
+    --color-rail-amber: #d97706;
+    --color-rail-red: #b91c1c;
+    --color-rail-violet: #6d28d9;
+    --color-rail-canvas: #f4f7fb;
+}

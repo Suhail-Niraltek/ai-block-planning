@@ -1,5 +1,5 @@
 import { effect, Service, signal } from '@angular/core';
-import { AccentName, AccentOption } from '../../models/theme';
+import { AccentName, AccentOption } from '../../modules/theme';
 
 @Service()
 export class ThemeService {

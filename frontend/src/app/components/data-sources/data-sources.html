@@ -1,0 +1,212 @@
+<app-page-header
+  icon="plug-zap"
+  [step]="1"
+  title="Data sources"
+  description="Connect maintenance demand with corridor availability, protected train paths, and freight forecasts."
+>
+  <button
+    type="button"
+    (click)="syncAll()"
+    [disabled]="store.anySyncing()"
+    class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rail-blue px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d4f86] focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+  >
+    <app-icon
+      [name]="store.anySyncing() ? 'loader-circle' : 'refresh-cw'"
+      size="h-4 w-4"
+      [class.animate-spin]="store.anySyncing()"
+    />
+    {{ store.anySyncing() ? 'Loading' : 'Load all sources' }}
+  </button>
+</app-page-header>
+
+<div class="space-y-5">
+  @if (store.error(); as message) {
+    <div
+      class="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200"
+      role="alert"
+    >
+      <app-icon name="circle-x" size="h-4 w-4" class="mt-0.5" />
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  @if (store.syncedCount() > 0) {
+    <section
+      class="grid overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:grid-cols-3 dark:border-slate-800 dark:bg-slate-900"
+      aria-label="Source loading summary"
+    >
+      <div class="flex items-center gap-3 p-4 sm:p-5">
+        <span
+          class="icon-frame grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400"
+          ><app-icon name="circle-check" size="h-4 w-4"
+        /></span>
+        <div>
+          <p class="text-xl font-bold tabular-nums text-rail-navy dark:text-white">
+            {{ store.syncedCount() }}/6
+          </p>
+          <p class="text-[11px] text-slate-500">Sources current</p>
+        </div>
+      </div>
+      <div
+        class="flex items-center gap-3 border-t border-slate-100 p-4 sm:border-t-0 sm:border-l sm:p-5 dark:border-slate-800"
+      >
+        <span
+          class="icon-frame grid h-9 w-9 place-items-center rounded-xl bg-sky-50 text-rail-blue dark:bg-sky-950/60 dark:text-sky-400"
+          ><app-icon name="database-zap" size="h-4 w-4"
+        /></span>
+        <div>
+          <p class="text-xl font-bold tabular-nums text-rail-navy dark:text-white">
+            {{ totalRecords() }}
+          </p>
+          <p class="text-[11px] text-slate-500">Records available</p>
+        </div>
+      </div>
+      <div
+        class="flex items-center gap-3 border-t border-slate-100 p-4 sm:border-t-0 sm:border-l sm:p-5 dark:border-slate-800"
+      >
+        <span
+          class="icon-frame grid h-9 w-9 place-items-center rounded-xl"
+          [class]="
+            store.failedCount() > 0
+              ? 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400'
+              : 'bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+          "
+          ><app-icon [name]="store.failedCount() > 0 ? 'circle-x' : 'circle-check'" size="h-4 w-4"
+        /></span>
+        <div>
+          <p class="text-xl font-bold tabular-nums text-rail-navy dark:text-white">
+            {{ store.failedCount() }}
+          </p>
+          <p class="text-[11px] text-slate-500">Sources requiring attention</p>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (store.loading() && store.sources().length === 0) {
+    <app-loading-state message="Loading source systems" />
+  } @else {
+    <ul class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      @for (entry of store.requiredSources(); track entry.code) {
+        <li
+          class="group flex flex-col rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_12px_30px_rgba(15,23,42,0.07)] dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+        >
+          <div class="flex items-start gap-3">
+            <span
+              class="icon-frame grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-rail-blue transition group-hover:scale-105 dark:bg-sky-950/50 dark:text-sky-400"
+            >
+              <app-icon [name]="sourceMeta(entry.code)?.icon ?? 'database-zap'" size="h-5 w-5" />
+            </span>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <h2 class="text-sm font-semibold text-rail-navy dark:text-slate-50">
+                  {{ entry.code }}
+                </h2>
+
+                @if (entry.isSyncing) {
+                  <app-status-badge label="Loading" tone="info" icon="loader-circle" />
+                } @else if (entry.source?.lastSyncStatus === 'COMPLETED') {
+                  <app-status-badge label="Loaded" tone="good" icon="circle-check" />
+                } @else if (entry.source?.lastSyncStatus === 'FAILED') {
+                  <app-status-badge label="Failed" tone="bad" icon="circle-x" />
+                } @else {
+                  <app-status-badge label="Not loaded" tone="neutral" icon="circle-alert" />
+                }
+              </div>
+
+              <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {{ sourceMeta(entry.code)?.name }}
+              </p>
+            </div>
+          </div>
+
+          <p class="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+            {{ sourceMeta(entry.code)?.contributes }}
+          </p>
+
+          <dl
+            class="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 dark:border-slate-800"
+          >
+            <div>
+              <dt class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                <app-icon name="database-zap" size="h-3 w-3" />Records
+              </dt>
+              <dd
+                class="mt-0.5 text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100"
+              >
+                {{ entry.source?.recordCount ?? 0 }}
+              </dd>
+            </div>
+            <div>
+              <dt class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                <app-icon name="clock" size="h-3 w-3" />Last loaded
+              </dt>
+              <dd class="mt-0.5 text-sm font-medium text-slate-800 dark:text-slate-100">
+                {{ relativeTime(entry.source?.lastSyncAt ?? null) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                <app-icon name="triangle-alert" size="h-3 w-3" />Rejected
+              </dt>
+              <dd
+                class="mt-0.5 text-sm font-semibold tabular-nums"
+                [class]="
+                  (entry.result?.rejectedCount ?? 0) > 0
+                    ? 'text-rail-red dark:text-red-400'
+                    : 'text-slate-800 dark:text-slate-100'
+                "
+              >
+                {{ entry.result ? entry.result.rejectedCount : '—' }}
+              </dd>
+            </div>
+          </dl>
+
+          @if (entry.result && entry.result.rejectedSample.length > 0) {
+            <details class="mt-3">
+              <summary
+                class="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-rail-red focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:text-red-400"
+              >
+                <app-icon name="triangle-alert" size="h-3.5 w-3.5" />
+                Why {{ entry.result.rejectedCount }} record(s) were rejected
+              </summary>
+              <ul class="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                @for (rejected of entry.result.rejectedSample; track rejected.externalId) {
+                  <li>
+                    <span class="font-mono">{{ rejected.externalId }}</span> — {{ rejected.reason }}
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+
+          <button
+            type="button"
+            (click)="sync(entry.code)"
+            [disabled]="entry.isSyncing || store.anySyncing()"
+            class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <app-icon
+              [name]="entry.isSyncing ? 'loader-circle' : 'refresh-cw'"
+              size="h-4 w-4"
+              [class.animate-spin]="entry.isSyncing"
+            />
+            {{ entry.isSyncing ? 'Loading' : entry.source?.lastSyncAt ? 'Reload' : 'Load records' }}
+          </button>
+        </li>
+      }
+    </ul>
+
+    <p
+      class="flex items-start gap-2 rounded-xl border border-slate-200/80 bg-white px-4 py-3 text-xs leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+    >
+      <app-icon name="info" size="h-3.5 w-3.5" class="mt-0.5" />
+      <span>
+        The official SIH26027 record publishes no dataset or API, so each source is served by a
+        local generator behind a swappable adapter. Only the adapter changes when a real feed
+        becomes available — nothing downstream does.
+      </span>
+    </p>
+  }
+</div>

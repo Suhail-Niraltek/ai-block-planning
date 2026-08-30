@@ -1,0 +1,653 @@
+<app-page-header
+  icon="list-checks"
+  [step]="2"
+  title="Maintenance backlog"
+  description="Review, filter, and understand maintenance risk across Engineering, Traction, and S&amp;T before assigning block time."
+>
+  <button
+    type="button"
+    (click)="recalculate()"
+    [disabled]="store.recalculating()"
+    class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rail-blue px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0d4f86] focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+  >
+    <app-icon
+      [name]="store.recalculating() ? 'loader-circle' : 'sparkles'"
+      size="h-4 w-4"
+      [class.animate-spin]="store.recalculating()"
+    />
+    {{ store.recalculating() ? 'Rescoring' : 'Rescore backlog' }}
+  </button>
+</app-page-header>
+
+<div class="space-y-5">
+  @if (store.lastRecalculation(); as result) {
+    <div
+      class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 dark:border-sky-900 dark:bg-sky-950/60"
+    >
+      <p class="flex items-start gap-2 text-sm text-sky-900 dark:text-sky-100">
+        <app-icon name="sparkles" size="h-4 w-4" class="mt-0.5" />
+        <span>
+          Rescored <strong>{{ result.tasksScored }}</strong> tasks —
+          <strong>{{ result.mlScored }}</strong> by the learned model,
+          <strong>{{ result.ruleScored }}</strong> by the rule engine.
+        </span>
+      </p>
+
+      @if (result.model.metrics; as metrics) {
+        <p class="mt-1.5 pl-6 text-xs leading-relaxed text-sky-800 dark:text-sky-200">
+          Trained on {{ metrics.trainRows }} past jobs and checked against
+          {{ metrics.validationRows }} later ones it had never seen: it ranks a riskier job above a
+          safer one about {{ rankingAccuracy(metrics.validationRocAuc) }} of the time (ROC-AUC
+          {{ metrics.validationRocAuc }}). Measured on synthetic history, not Indian Railways
+          performance.
+        </p>
+      } @else {
+        <p class="mt-1.5 pl-6 text-xs text-sky-800 dark:text-sky-200">
+          Learned model unavailable ({{ result.model.reason }}), so every score came from the
+          transparent rule engine.
+        </p>
+      }
+    </div>
+  }
+
+  @if (store.error(); as message) {
+    <div
+      class="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200"
+      role="alert"
+    >
+      <app-icon name="circle-x" size="h-4 w-4" class="mt-0.5" />
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  <section
+    class="grid overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)] md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)] dark:border-slate-800 dark:bg-slate-900"
+    aria-labelledby="score-guide-heading"
+  >
+    <div class="p-5 sm:p-6">
+      <div class="flex items-start gap-3">
+        <span
+          class="icon-frame grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300"
+        >
+          <app-icon name="sparkles" size="h-5 w-5" />
+        </span>
+        <div>
+          <h2 id="score-guide-heading" class="text-sm font-bold text-rail-navy dark:text-white">
+            How to read the risk score
+          </h2>
+          <p class="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">
+            A 0–100 estimate of failure, escalation, or an operating restriction if the work is
+            deferred. Higher scores should be reviewed first.
+          </p>
+        </div>
+      </div>
+      <div class="mt-4 grid grid-cols-3 gap-2 text-center">
+        <div class="rounded-xl bg-slate-50 px-2 py-2.5 dark:bg-slate-800/60">
+          <p class="text-sm font-bold text-slate-700 dark:text-slate-200">0–44</p>
+          <p class="text-[10px] font-semibold text-slate-500">Routine</p>
+        </div>
+        <div class="rounded-xl bg-amber-50 px-2 py-2.5 dark:bg-amber-950/40">
+          <p class="text-sm font-bold text-amber-700 dark:text-amber-300">45–69</p>
+          <p class="text-[10px] font-semibold text-amber-600 dark:text-amber-400">Elevated</p>
+        </div>
+        <div class="rounded-xl bg-red-50 px-2 py-2.5 dark:bg-red-950/40">
+          <p class="text-sm font-bold text-red-700 dark:text-red-300">70–100</p>
+          <p class="text-[10px] font-semibold text-red-600 dark:text-red-400">Urgent</p>
+        </div>
+      </div>
+    </div>
+    <div
+      class="border-t border-slate-100 bg-slate-50/70 p-5 md:border-t-0 md:border-l dark:border-slate-800 dark:bg-slate-950/35"
+    >
+      <p class="text-[10px] font-bold tracking-[0.14em] text-slate-500 uppercase">
+        See the evidence
+      </p>
+      <p class="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-400">
+        Select a task title to open its score inspector. Contributing factors, scoring method,
+        duration evidence, and asset context are shown together.
+      </p>
+      <p
+        class="mt-3 flex items-start gap-2 text-[11px] leading-4 text-slate-500 dark:text-slate-500"
+      >
+        <app-icon name="info" size="h-3.5 w-3.5" class="mt-px shrink-0" />
+        Scores support prioritisation; safety constraints still decide whether a task can be placed.
+      </p>
+    </div>
+  </section>
+
+  <!-- Filters -->
+  <section
+    class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900"
+    aria-labelledby="filters-heading"
+  >
+    <h2
+      id="filters-heading"
+      class="mb-4 flex items-center gap-2 text-[10px] font-bold tracking-[0.15em] text-slate-500 uppercase dark:text-slate-400"
+    >
+      <app-icon name="filter" size="h-3.5 w-3.5" />
+      Narrow the list
+    </h2>
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div>
+        <label
+          for="filter-department"
+          class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+          ><span
+            class="icon-frame grid h-6 w-6 place-items-center rounded-md bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
+            ><app-icon name="hard-hat" size="h-3 w-3"
+          /></span>
+          Department</label
+        >
+        <select
+          id="filter-department"
+          class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:border-slate-600 dark:bg-slate-800"
+          (change)="onDepartmentChange($any($event.target).value)"
+        >
+          <option value="">All departments</option>
+          @for (department of departments; track department.code) {
+            <option [value]="department.code">{{ department.fullName }}</option>
+          }
+        </select>
+      </div>
+
+      <div>
+        <label
+          for="filter-severity"
+          class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+          ><span
+            class="icon-frame grid h-6 w-6 place-items-center rounded-md bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400"
+            ><app-icon name="triangle-alert" size="h-3 w-3"
+          /></span>
+          Severity</label
+        >
+        <select
+          id="filter-severity"
+          class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:border-slate-600 dark:bg-slate-800"
+          (change)="onSeverityChange($any($event.target).value)"
+        >
+          <option value="">Any severity</option>
+          @for (severity of severities; track severity) {
+            <option [value]="severity">{{ severity }}</option>
+          }
+        </select>
+      </div>
+
+      <div>
+        <label
+          for="filter-corridor"
+          class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+          ><span
+            class="icon-frame grid h-6 w-6 place-items-center rounded-md bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
+            ><app-icon name="route" size="h-3 w-3"
+          /></span>
+          Corridor</label
+        >
+        <select
+          id="filter-corridor"
+          class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:border-slate-600 dark:bg-slate-800"
+          (change)="onCorridorChange($any($event.target).value)"
+        >
+          <option value="">All corridors</option>
+          @for (corridor of store.corridors(); track corridor.id) {
+            <option [value]="corridor.id">{{ corridor.code }} — {{ corridor.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div>
+        <label
+          for="filter-section"
+          class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+          ><span
+            class="icon-frame grid h-6 w-6 place-items-center rounded-md bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400"
+            ><app-icon name="signpost" size="h-3 w-3"
+          /></span>
+          Section</label
+        >
+        <select
+          id="filter-section"
+          class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:border-slate-600 dark:bg-slate-800"
+          (change)="onSectionChange($any($event.target).value)"
+        >
+          <option value="">All sections</option>
+          @for (section of sectionsForCorridor(); track section.id) {
+            <option [value]="section.id">{{ section.code }} — {{ section.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div>
+        <label
+          for="filter-priority"
+          class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+          ><span
+            class="icon-frame grid h-6 w-6 place-items-center rounded-md bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
+            ><app-icon name="gauge" size="h-3 w-3"
+          /></span>
+          Minimum score: <span class="tabular-nums">{{ store.filters().minPriority }}</span></label
+        >
+        <input
+          id="filter-priority"
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          [value]="store.filters().minPriority"
+          (input)="onMinPriorityChange($event)"
+          class="mt-2.5 w-full accent-rail-blue focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none"
+        />
+
+        <label class="mt-1.5 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <input
+            type="checkbox"
+            [checked]="store.filters().overdueOnly"
+            (change)="onOverdueChange($event)"
+            class="rounded border-slate-400 accent-rail-blue focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none"
+          />
+          <span
+            class="icon-frame grid h-6 w-6 place-items-center rounded-md bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
+            ><app-icon name="timer" size="h-3 w-3"
+          /></span>
+          Overdue only
+        </label>
+      </div>
+    </div>
+
+    <div
+      class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-sm dark:border-slate-800"
+    >
+      <span class="text-slate-600 dark:text-slate-300">
+        <strong class="tabular-nums text-slate-900 dark:text-slate-50">{{
+          store.filteredCount()
+        }}</strong>
+        task(s) shown
+      </span>
+      <span class="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+        <app-icon name="triangle-alert" size="h-3.5 w-3.5" class="text-red-500" />
+        {{ store.criticalCount() }} critical
+      </span>
+      <span class="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+        <app-icon name="timer" size="h-3.5 w-3.5" class="text-amber-500" />
+        {{ store.overdueCount() }} overdue
+      </span>
+
+      @if (store.hasActiveFilters()) {
+        <button
+          type="button"
+          (click)="store.clearFilters()"
+          class="ml-auto inline-flex items-center gap-1 text-xs font-medium text-rail-blue hover:underline focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:text-sky-400"
+        >
+          <app-icon name="x" size="h-3.5 w-3.5" />
+          Clear filters
+        </button>
+      }
+
+      @if (expandedTaskIds().size > 0) {
+        <span
+          class="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 dark:text-sky-400"
+        >
+          <app-icon name="layout-dashboard" size="h-3.5 w-3.5" />
+          {{ expandedTaskIds().size }} detail panel(s) open
+        </span>
+        <button
+          type="button"
+          (click)="collapseAllDetails()"
+          class="inline-flex items-center gap-1 text-xs font-bold text-rail-blue hover:underline focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:text-sky-400"
+        >
+          <app-icon name="x" size="h-3.5 w-3.5" />
+          Collapse all
+        </button>
+      }
+    </div>
+  </section>
+
+  @if (store.loading() && store.tasks().length === 0) {
+    <app-loading-state message="Loading the maintenance backlog" />
+  } @else if (store.tasks().length === 0) {
+    <app-empty-state
+      icon="database-zap"
+      title="No maintenance tasks yet"
+      message="Load TMS, SMMS and TDMS on the Data sources page to build the backlog."
+    />
+  } @else if (store.filteredCount() === 0) {
+    <app-empty-state
+      icon="filter"
+      title="Nothing matches these filters"
+      message="Try widening the department, severity, section or minimum-score filter."
+    />
+  } @else {
+    <div
+      class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900"
+    >
+      <table class="w-full min-w-4xl text-left text-sm">
+        <caption class="sr-only">
+          Maintenance tasks with risk score, predicted duration and the possession each one needs
+        </caption>
+        <thead
+          class="border-b border-slate-200 bg-slate-50/90 text-[10px] tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300"
+        >
+          <tr>
+            <th scope="col" class="w-16 px-3 py-2.5 text-center font-semibold">S.No</th>
+            <th scope="col" class="px-3 py-2.5 font-semibold">Task</th>
+            <th scope="col" class="px-3 py-2.5 font-semibold">Department</th>
+            <th scope="col" class="px-3 py-2.5 font-semibold">Severity</th>
+            <th scope="col" class="px-3 py-2.5 font-semibold">Due</th>
+            <th scope="col" class="px-3 py-2.5 font-semibold">Needs</th>
+            <th scope="col" class="px-3 py-2.5 text-right font-semibold">Time</th>
+            <th scope="col" class="px-4 py-2.5 text-right font-semibold">Risk score</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          @for (task of store.filteredTasks(); track task.id) {
+            <tr
+              class="align-top transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              [class]="isExpanded(task.id) ? 'bg-sky-50 dark:bg-sky-950/30' : ''"
+            >
+              <td class="px-3 py-3 text-center text-xs font-semibold tabular-nums text-slate-400">
+                {{ $index + 1 }}
+              </td>
+              <td class="px-3 py-3">
+                <button
+                  type="button"
+                  (click)="toggleDetail(task)"
+                  class="flex items-start gap-1.5 text-left font-medium text-rail-blue hover:underline focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:text-sky-400"
+                  [attr.aria-expanded]="isExpanded(task.id)"
+                >
+                  <app-icon
+                    name="chevron-right"
+                    size="h-4 w-4"
+                    class="mt-0.5 transition-transform"
+                    [class.rotate-90]="isExpanded(task.id)"
+                  />
+                  <span>{{ task.title }}</span>
+                </button>
+                <span class="mt-0.5 block pl-5.5 text-xs text-slate-500 dark:text-slate-400">
+                  {{ task.sectionCode }} · {{ task.assetCode }}
+                </span>
+              </td>
+
+              <td class="px-3 py-3">
+                <app-status-badge
+                  [label]="departmentMeta(task.department).label"
+                  [classOverride]="departmentMeta(task.department).chipClass"
+                  [icon]="departmentMeta(task.department).icon"
+                />
+              </td>
+
+              <td class="px-3 py-3">
+                <app-status-badge
+                  [label]="task.severity"
+                  [classOverride]="severityClass[task.severity]"
+                />
+                @if (task.safetyCritical) {
+                  <span
+                    class="mt-1 flex items-center gap-1 text-xs font-semibold text-rail-red dark:text-red-400"
+                  >
+                    <app-icon name="triangle-alert" size="h-3 w-3" />
+                    Safety critical
+                  </span>
+                }
+              </td>
+
+              <td
+                class="px-3 py-3 text-xs whitespace-nowrap"
+                [class]="
+                  task.daysOverdue > 0
+                    ? 'font-semibold text-rail-red dark:text-red-400'
+                    : 'text-slate-600 dark:text-slate-400'
+                "
+              >
+                {{ dueLabel(task) }}
+              </td>
+
+              <td class="px-3 py-3">
+                <span class="flex flex-wrap gap-1">
+                  @for (requirement of blockRequirements(task); track requirement) {
+                    <span
+                      class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      >{{ requirement }}</span
+                    >
+                  }
+                </span>
+              </td>
+
+              <td class="px-3 py-3 text-right whitespace-nowrap">
+                <span class="font-semibold tabular-nums text-slate-900 dark:text-slate-100"
+                  >{{ task.predictedDurationMinutes ?? task.requestedDurationMinutes }}m</span
+                >
+                <span class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400"
+                  >asked {{ task.requestedDurationMinutes }}m</span
+                >
+              </td>
+
+              <td class="px-4 py-3 text-right">
+                <span
+                  class="text-base font-semibold tabular-nums text-slate-900 dark:text-slate-50"
+                  >{{ task.priorityScore }}</span
+                >
+                <span class="mt-1 flex justify-end">
+                  <app-status-badge
+                    [label]="priorityBand(task.priorityScore).label"
+                    [tone]="priorityBand(task.priorityScore).tone"
+                  />
+                </span>
+              </td>
+            </tr>
+
+            @if (isExpanded(task.id)) {
+              <tr class="bg-slate-50 dark:bg-slate-800/40">
+                <td colspan="8" class="px-3 py-4 sm:px-5">
+                  <section
+                    class="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm dark:border-sky-900/70 dark:bg-slate-900"
+                    [attr.aria-label]="'Score details for ' + task.title"
+                  >
+                    <div
+                      class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800"
+                    >
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="icon-frame grid h-8 w-8 place-items-center rounded-lg bg-sky-50 text-rail-blue dark:bg-sky-950/60 dark:text-sky-300"
+                        >
+                          <app-icon name="sparkles" size="h-4 w-4" />
+                        </span>
+                        <div>
+                          <h3 class="text-sm font-bold text-rail-navy dark:text-white">
+                            Why this score
+                          </h3>
+                          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                            {{ task.title }}
+                          </p>
+                        </div>
+                      </div>
+                      <app-status-badge
+                        [label]="task.prioritySource === 'ML' ? 'Learned model' : 'Rule engine'"
+                        tone="info"
+                      />
+                    </div>
+
+                    <div class="grid lg:grid-cols-[12rem_minmax(0,1.15fr)_minmax(0,1fr)]">
+                      <div class="bg-[#0a2942] p-5 text-white">
+                        <p class="text-[10px] font-bold tracking-[0.14em] text-sky-300 uppercase">
+                          Risk score
+                        </p>
+                        <div class="mt-2 flex items-end gap-1">
+                          <span class="text-5xl font-bold tracking-[-0.05em] tabular-nums">{{
+                            task.priorityScore
+                          }}</span>
+                          <span class="pb-1 text-sm text-slate-400">/100</span>
+                        </div>
+                        <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            class="h-full rounded-full bg-sky-400"
+                            [style.width.%]="task.priorityScore"
+                          ></div>
+                        </div>
+                        <p
+                          class="mt-3 text-xs font-bold"
+                          [class]="
+                            priorityBand(task.priorityScore).tone === 'bad'
+                              ? 'text-red-300'
+                              : priorityBand(task.priorityScore).tone === 'warn'
+                                ? 'text-amber-300'
+                                : 'text-slate-300'
+                          "
+                        >
+                          {{ priorityBand(task.priorityScore).label }} priority
+                        </p>
+                        <p class="mt-1 text-[10px] leading-4 text-slate-400">
+                          Higher means greater risk if deferred.
+                        </p>
+                      </div>
+
+                      <div
+                        class="border-b border-slate-100 p-5 lg:border-r lg:border-b-0 dark:border-slate-800"
+                      >
+                        <h4
+                          class="text-[10px] font-bold tracking-[0.14em] text-slate-500 uppercase"
+                        >
+                          Contributing factors
+                        </h4>
+                        <ul class="mt-3 space-y-2">
+                          @for (reason of task.priorityReasons; track reason.factor) {
+                            <li
+                              class="flex items-start gap-2.5 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60"
+                            >
+                              <span
+                                class="icon-frame mt-px grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+                                [class]="scoreFactorTone(reason.factor, reason.detail)"
+                              >
+                                <app-icon
+                                  [name]="scoreFactorIcon(reason.factor, reason.detail)"
+                                  size="h-3.5 w-3.5"
+                                />
+                              </span>
+                              <span
+                                class="min-w-0 flex-1 text-xs leading-5 text-slate-700 dark:text-slate-200"
+                                >{{ reason.detail }}</span
+                              >
+                              <span
+                                class="shrink-0 rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700"
+                              >
+                                {{ reason.contribution > 0 ? '+' : '' }}{{ reason.contribution }}
+                              </span>
+                            </li>
+                          } @empty {
+                            <li
+                              class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400"
+                            >
+                              No explanation is stored yet. Use “Rescore backlog” to generate one.
+                            </li>
+                          }
+                        </ul>
+                      </div>
+
+                      <div class="p-5">
+                        <h4
+                          class="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-slate-500 uppercase"
+                        >
+                          <app-icon name="wrench" size="h-3.5 w-3.5" />
+                          Job and asset context
+                        </h4>
+                        <dl
+                          class="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2.5 text-xs"
+                        >
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
+                              ><app-icon name="timer" size="h-3 w-3" /></span
+                            >Reserved duration
+                          </dt>
+                          <dd class="text-right font-semibold text-slate-800 dark:text-slate-200">
+                            {{ task.predictedDurationMinutes ?? '—' }} min
+                          </dd>
+
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400"
+                              ><app-icon name="chart-column-big" size="h-3 w-3" /></span
+                            >Evidence
+                          </dt>
+                          <dd class="text-right text-slate-800 dark:text-slate-200">
+                            P90 of {{ task.predictedDurationSampleCount }} jobs
+                          </dd>
+
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400"
+                              ><app-icon name="wrench" size="h-3 w-3" /></span
+                            >Asset
+                          </dt>
+                          <dd class="text-right font-mono text-slate-800 dark:text-slate-200">
+                            {{ task.assetCode }}
+                          </dd>
+
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400"
+                              ><app-icon name="gauge" size="h-3 w-3" /></span
+                            >Asset criticality
+                          </dt>
+                          <dd class="text-right font-semibold text-slate-800 dark:text-slate-200">
+                            {{ task.criticality }} of 5
+                          </dd>
+
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
+                              ><app-icon name="route" size="h-3 w-3" /></span
+                            >Corridor
+                          </dt>
+                          <dd class="text-right text-slate-800 dark:text-slate-200">
+                            {{ task.corridorCode }} · {{ task.corridorImportance }}/5
+                          </dd>
+
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
+                              ><app-icon name="train-front" size="h-3 w-3" /></span
+                            >Speed restriction
+                          </dt>
+                          <dd class="text-right text-slate-800 dark:text-slate-200">
+                            {{
+                              task.speedRestrictionKmph
+                                ? task.speedRestrictionKmph + ' km/h'
+                                : 'None'
+                            }}
+                          </dd>
+
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
+                              ><app-icon name="refresh-cw" size="h-3 w-3" /></span
+                            >Earlier defects
+                          </dt>
+                          <dd class="text-right text-slate-800 dark:text-slate-200">
+                            {{ task.repeatCount }}
+                          </dd>
+
+                          <dt class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                            <span
+                              class="icon-frame grid h-6 w-6 shrink-0 place-items-center rounded-md bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                              ><app-icon name="database-zap" size="h-3 w-3" /></span
+                            >Source record
+                          </dt>
+                          <dd
+                            class="max-w-36 truncate text-right font-mono text-slate-800 dark:text-slate-200"
+                            [title]="task.externalId"
+                          >
+                            {{ task.sourceCode }} · {{ task.externalId }}
+                          </dd>
+                        </dl>
+                      </div>
+                    </div>
+                  </section>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

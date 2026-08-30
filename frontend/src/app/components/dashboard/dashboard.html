@@ -1,0 +1,505 @@
+<app-page-header
+  icon="layout-dashboard"
+  title="Operations overview"
+  description="A clear view of data readiness, maintenance risk, and the latest coordinated block plan."
+>
+  @if (sources.syncedCount() > 0) {
+    <button
+      type="button"
+      (click)="syncAll()"
+      [disabled]="sources.anySyncing()"
+      class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+    >
+      <app-icon name="refresh-cw" size="h-4 w-4" [class.animate-spin]="sources.anySyncing()" />
+      {{ sources.anySyncing() ? 'Refreshing' : 'Refresh data' }}
+    </button>
+  }
+
+  <a
+    routerLink="/planner"
+    class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rail-blue px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-blue-900/15 transition hover:-translate-y-px hover:bg-[#0d4f86] hover:shadow-md focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:ring-offset-2 focus-visible:outline-none sm:w-auto"
+  >
+    <app-icon name="sparkles" size="h-4 w-4" />
+    {{ plan() ? 'Create new plan' : 'Generate a plan' }}
+  </a>
+</app-page-header>
+
+<div class="space-y-5">
+  @if (sources.error(); as message) {
+    <div
+      class="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200"
+      role="alert"
+    >
+      <app-icon name="circle-x" size="h-4 w-4" class="mt-0.5 shrink-0" />
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  @if (stage() === 'NO_DATA') {
+    <section
+      class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-900"
+    >
+      <div class="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div class="p-6 sm:p-8">
+          <span
+            class="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold tracking-wide text-rail-blue uppercase dark:bg-sky-950/50 dark:text-sky-300"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
+            Set up your workspace
+          </span>
+          <h2
+            class="mt-4 max-w-xl text-2xl font-bold tracking-tight text-rail-navy sm:text-3xl dark:text-white"
+          >
+            Start by loading the six data sources
+          </h2>
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+            The planner needs maintenance demand, safe corridor windows, protected train paths, and
+            freight forecasts before it can recommend a block.
+          </p>
+
+          <button
+            type="button"
+            (click)="syncAll()"
+            [disabled]="sources.anySyncing()"
+            class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rail-blue px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#0d4f86] focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            <app-icon
+              [name]="sources.anySyncing() ? 'loader-circle' : 'arrow-right'"
+              size="h-4 w-4"
+              [class.animate-spin]="sources.anySyncing()"
+            />
+            {{ sources.anySyncing() ? 'Loading records' : 'Load all six sources' }}
+          </button>
+        </div>
+
+        <div
+          class="border-t border-slate-100 bg-slate-50/80 p-6 lg:border-t-0 lg:border-l dark:border-slate-800 dark:bg-slate-950/40"
+        >
+          <p class="text-[10px] font-bold tracking-[0.16em] text-slate-500 uppercase">
+            Required inputs
+          </p>
+          <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            @for (source of sourceList; track source.code) {
+              <li class="flex items-center gap-3">
+                <span
+                  class="icon-frame grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-slate-500 dark:bg-slate-900"
+                >
+                  <app-icon [name]="source.icon" size="h-4 w-4" />
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-xs font-bold text-slate-800 dark:text-slate-100">{{
+                    source.code
+                  }}</span>
+                  <span class="block truncate text-[11px] text-slate-500 dark:text-slate-400">{{
+                    source.contributes
+                  }}</span>
+                </span>
+              </li>
+            }
+          </ul>
+        </div>
+      </div>
+    </section>
+  } @else {
+    <section
+      class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5 dark:border-slate-800 dark:bg-slate-900"
+      aria-labelledby="sources-heading"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span
+            class="icon-frame grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400"
+          >
+            <app-icon name="database-zap" size="h-[18px] w-[18px]" />
+          </span>
+          <div>
+            <h2 id="sources-heading" class="text-sm font-bold text-rail-navy dark:text-white">
+              Data readiness
+            </h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {{ sources.syncedCount() }} of 6 required inputs are current
+            </p>
+          </div>
+        </div>
+
+        <a
+          routerLink="/data-sources"
+          class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold text-rail-blue transition hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:text-sky-400 dark:hover:bg-sky-950/40"
+        >
+          Manage<span class="hidden sm:inline"> sources</span>
+          <app-icon name="chevron-right" size="h-3.5 w-3.5" />
+        </a>
+      </div>
+
+      <ul class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        @for (entry of sources.requiredSources(); track entry.code) {
+          <li
+            class="flex min-w-0 items-center gap-2.5 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100 dark:bg-slate-800/55 dark:ring-slate-800"
+          >
+            <app-icon
+              [name]="
+                entry.isSyncing
+                  ? 'loader-circle'
+                  : entry.source?.lastSyncStatus === 'COMPLETED'
+                    ? 'circle-check'
+                    : entry.source?.lastSyncStatus === 'FAILED'
+                      ? 'circle-x'
+                      : 'circle-alert'
+              "
+              size="h-4 w-4"
+              [class]="
+                entry.isSyncing
+                  ? 'shrink-0 animate-spin text-sky-500'
+                  : entry.source?.lastSyncStatus === 'COMPLETED'
+                    ? 'shrink-0 text-emerald-600 dark:text-emerald-400'
+                    : entry.source?.lastSyncStatus === 'FAILED'
+                      ? 'shrink-0 text-red-600 dark:text-red-400'
+                      : 'shrink-0 text-slate-400'
+              "
+            />
+            <span class="min-w-0">
+              <span
+                class="block truncate text-[11px] font-bold text-slate-800 dark:text-slate-100"
+                >{{ entry.code }}</span
+              >
+              <span
+                class="block truncate text-[10px] tabular-nums text-slate-500 dark:text-slate-400"
+                >{{ entry.source?.recordCount ?? 0 }} records</span
+              >
+            </span>
+          </li>
+        }
+      </ul>
+    </section>
+
+    @if (totals(); as summary) {
+      <div class="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,0.72fr)]">
+        <section
+          class="relative overflow-hidden rounded-2xl bg-[#0a2942] text-white shadow-[0_14px_34px_rgba(8,29,48,0.15)]"
+          aria-labelledby="plan-heading"
+        >
+          <div
+            class="pointer-events-none absolute -top-24 -right-20 h-64 w-64 rounded-full bg-sky-400/10 blur-2xl"
+          ></div>
+          <div class="relative p-5 sm:p-6 lg:p-7">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p
+                  class="flex items-center gap-2 text-[10px] font-bold tracking-[0.16em] text-sky-300 uppercase"
+                >
+                  <app-icon name="calendar-cog" size="h-3.5 w-3.5" />
+                  Latest block plan
+                </p>
+
+                @if (stage() === 'NO_PLAN') {
+                  <h2 id="plan-heading" class="mt-3 text-xl font-bold tracking-tight sm:text-2xl">
+                    The data is loaded. Now generate a plan.
+                  </h2>
+                  <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                    Build one coordinated schedule that protects train paths and combines compatible
+                    work across Engineering, Traction, and S&amp;T.
+                  </p>
+                } @else if (plan(); as latest) {
+                  @if (planSummary(); as planInfo) {
+                    <div class="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
+                      <span class="text-5xl font-bold tracking-[-0.05em] tabular-nums sm:text-6xl"
+                        >{{ planInfo.coverage }}%</span
+                      >
+                      <span class="max-w-52 pb-1 text-sm leading-5 text-slate-300"
+                        >of this {{ planInfo.horizon }}'s maintenance backlog scheduled</span
+                      >
+                    </div>
+                  }
+                }
+              </div>
+
+              @if (plan(); as latest) {
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold text-emerald-300 ring-1 ring-inset ring-emerald-400/25"
+                >
+                  <app-icon
+                    [name]="latest.solverStatus === 'OPTIMAL' ? 'circle-check' : 'triangle-alert'"
+                    size="h-3.5 w-3.5"
+                  />
+                  {{ latest.solverStatus }}
+                </span>
+              }
+            </div>
+
+            @if (stage() === 'NO_PLAN') {
+              <div class="mt-6 grid gap-3 sm:grid-cols-3">
+                <div class="rounded-xl bg-white/[0.06] p-3.5 ring-1 ring-inset ring-white/[0.06]">
+                  <span
+                    class="icon-frame grid h-8 w-8 place-items-center rounded-lg bg-white/[0.05] text-sky-300"
+                    ><app-icon name="train-front" size="h-4 w-4"
+                  /></span>
+                  <p class="mt-2 text-xs font-semibold">Protects train paths</p>
+                </div>
+                <div class="rounded-xl bg-white/[0.06] p-3.5 ring-1 ring-inset ring-white/[0.06]">
+                  <span
+                    class="icon-frame grid h-8 w-8 place-items-center rounded-lg bg-white/[0.05] text-sky-300"
+                    ><app-icon name="scale" size="h-4 w-4"
+                  /></span>
+                  <p class="mt-2 text-xs font-semibold">Bundles departments</p>
+                </div>
+                <div class="rounded-xl bg-white/[0.06] p-3.5 ring-1 ring-inset ring-white/[0.06]">
+                  <span
+                    class="icon-frame grid h-8 w-8 place-items-center rounded-lg bg-white/[0.05] text-sky-300"
+                    ><app-icon name="activity" size="h-4 w-4"
+                  /></span>
+                  <p class="mt-2 text-xs font-semibold">Maximises availability</p>
+                </div>
+              </div>
+
+              <a
+                routerLink="/planner"
+                class="mt-6 inline-flex items-center gap-2 rounded-xl bg-sky-400 px-4 py-2.5 text-sm font-bold text-[#08243a] transition hover:bg-sky-300 focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a2942] focus-visible:outline-none"
+              >
+                Open the block planner
+                <app-icon name="arrow-right" size="h-4 w-4" />
+              </a>
+            } @else if (plan(); as latest) {
+              @if (planSummary(); as planInfo) {
+                <div class="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    class="h-full rounded-full bg-sky-400"
+                    [style.width.%]="planInfo.coverage"
+                  ></div>
+                </div>
+
+                <p class="mt-3 text-xs leading-5 text-slate-300">
+                  <strong class="text-white"
+                    >{{ planInfo.criticalCovered }} critical task(s)</strong
+                  >
+                  are covered.
+                  @if (planInfo.criticalLeft > 0) {
+                    <strong class="text-amber-300"
+                      >{{ planInfo.criticalLeft }} critical task(s) still have no safe slot.</strong
+                    >
+                  }
+                </p>
+              }
+
+              <dl
+                class="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-white/10 ring-1 ring-white/10 sm:grid-cols-4"
+              >
+                <div class="bg-[#0c2f4c] p-3.5">
+                  <dt class="text-[10px] font-semibold text-slate-400">Work scheduled</dt>
+                  <dd class="mt-1 text-lg font-bold tabular-nums">
+                    {{ latest.scheduledTasks }}
+                    <span class="text-xs font-medium text-slate-400"
+                      >/ {{ latest.totalTasks }}</span
+                    >
+                  </dd>
+                </div>
+                <div class="bg-[#0c2f4c] p-3.5">
+                  <dt class="text-[10px] font-semibold text-slate-400">Asset availability</dt>
+                  <dd class="mt-1 text-lg font-bold tabular-nums text-emerald-300">
+                    {{ latest.assetAvailabilityPercentage }}%
+                  </dd>
+                </div>
+                <div class="bg-[#0c2f4c] p-3.5">
+                  <dt class="text-[10px] font-semibold text-slate-400">Track time</dt>
+                  <dd class="mt-1 text-lg font-bold tabular-nums">
+                    {{ latest.totalBlockMinutes }}
+                    <span class="text-xs font-medium text-slate-400">min</span>
+                  </dd>
+                </div>
+                <div class="bg-[#0c2f4c] p-3.5">
+                  <dt class="text-[10px] font-semibold text-slate-400">Shared blocks</dt>
+                  <dd class="mt-1 text-lg font-bold tabular-nums">
+                    {{ latest.multiDepartmentBlockCount }}
+                  </dd>
+                </div>
+              </dl>
+
+              <div class="mt-5 flex flex-wrap gap-2">
+                <a
+                  [routerLink]="['/plans', latest.id]"
+                  class="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#0a2942] transition hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  Review plan
+                  <app-icon name="arrow-right" size="h-4 w-4" />
+                </a>
+                <a
+                  routerLink="/compare"
+                  class="inline-flex items-center gap-2 rounded-xl bg-white/[0.07] px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/15 transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  <app-icon name="scale" size="h-4 w-4" />
+                  Compare impact
+                </a>
+              </div>
+            } @else if (loadingAnything()) {
+              <div class="mt-6"><app-loading-state message="Loading the most recent plan" /></div>
+            }
+          </div>
+        </section>
+
+        <section
+          class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900"
+          aria-labelledby="attention-heading"
+        >
+          <div class="flex items-center gap-2.5">
+            <span
+              class="icon-frame grid h-9 w-9 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400"
+            >
+              <app-icon name="triangle-alert" size="h-[18px] w-[18px]" />
+            </span>
+            <div>
+              <h2 id="attention-heading" class="text-sm font-bold text-rail-navy dark:text-white">
+                Needs attention
+              </h2>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                Highest operational risk first
+              </p>
+            </div>
+          </div>
+
+          <dl class="mt-5 divide-y divide-slate-100 dark:divide-slate-800">
+            <div class="flex items-center justify-between gap-4 py-3 first:pt-0">
+              <div>
+                <dt class="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  Critical severity
+                </dt>
+                <p class="mt-0.5 text-[11px] text-slate-500">
+                  {{ summary.safetyCriticalTasks }} safety-critical
+                </p>
+              </div>
+              <dd class="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">
+                {{ summary.criticalTasks }}
+              </dd>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-3">
+              <div>
+                <dt class="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  Past due date
+                </dt>
+                <p class="mt-0.5 text-[11px] text-slate-500">Prioritise in the next safe window</p>
+              </div>
+              <dd class="text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                {{ summary.overdueTasks }}
+              </dd>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-3">
+              <div>
+                <dt class="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  Awaiting a block
+                </dt>
+                <p class="mt-0.5 text-[11px] text-slate-500">Ready to be considered</p>
+              </div>
+              <dd class="text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
+                {{ summary.readyTasks }}
+              </dd>
+            </div>
+          </dl>
+
+          <a
+            routerLink="/maintenance"
+            class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Open prioritised backlog
+            <app-icon name="arrow-right" size="h-3.5 w-3.5" />
+          </a>
+        </section>
+      </div>
+
+      <section
+        class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+        aria-labelledby="backlog-heading"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="backlog-heading" class="text-sm font-bold text-rail-navy dark:text-white">
+              Maintenance backlog
+            </h2>
+            <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Workload and scoring confidence across all departments
+            </p>
+          </div>
+          <a
+            routerLink="/maintenance"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-rail-blue hover:underline focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:text-sky-400"
+          >
+            Open backlog
+            <app-icon name="chevron-right" size="h-3.5 w-3.5" />
+          </a>
+        </div>
+
+        <dl class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <app-metric-card
+            label="Tasks waiting for a block"
+            [value]="summary.readyTasks"
+            icon="clock"
+            [hint]="summary.totalTasks + ' in the backlog in total'"
+          />
+          <app-metric-card
+            label="Critical severity"
+            [value]="summary.criticalTasks"
+            icon="triangle-alert"
+            tone="bad"
+            [hint]="summary.safetyCriticalTasks + ' flagged safety critical'"
+          />
+          <app-metric-card
+            label="Past their due date"
+            [value]="summary.overdueTasks"
+            icon="timer"
+            tone="warn"
+            hint="Overdue work carries the most risk"
+          />
+          <app-metric-card
+            label="Scored by the model"
+            [value]="summary.mlScoredTasks + ' of ' + summary.totalTasks"
+            icon="sparkles"
+            tone="good"
+            hint="Transparent priority scoring"
+          />
+        </dl>
+
+        <div class="mt-5 border-t border-slate-100 pt-5 dark:border-slate-800">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
+              Workload by department
+            </p>
+            <p class="text-[11px] text-slate-500">{{ summary.totalTasks }} tasks total</p>
+          </div>
+          <div
+            class="mt-3 flex h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+            aria-label="Maintenance workload by department"
+          >
+            @for (department of departmentSplit(); track department.code) {
+              @if (department.percentage > 0) {
+                <span
+                  class="h-full first:rounded-l-full last:rounded-r-full"
+                  [class]="department.barClass"
+                  [style.width.%]="department.percentage"
+                ></span>
+              }
+            }
+          </div>
+          <ul class="mt-4 grid gap-3 sm:grid-cols-3">
+            @for (department of departmentSplit(); track department.code) {
+              <li
+                class="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/50"
+              >
+                <span
+                  class="h-2.5 w-2.5 shrink-0 rounded-full"
+                  [class]="department.barClass"
+                ></span>
+                <span class="min-w-0 flex-1">
+                  <span
+                    class="block truncate text-xs font-bold text-slate-800 dark:text-slate-100"
+                    >{{ department.fullName }}</span
+                  >
+                  <span class="block text-[11px] text-slate-500">{{ department.label }}</span>
+                </span>
+                <span class="text-sm font-bold tabular-nums text-slate-900 dark:text-white">{{
+                  department.count
+                }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </section>
+    }
+  }
+</div>

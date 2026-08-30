@@ -1,0 +1,317 @@
+<app-page-header
+  icon="calendar-cog"
+  [step]="3"
+  title="Block planner"
+  description="Choose the planning horizon and corridor scope. Safety rules remain hard constraints in every generated plan."
+/>
+
+<div class="grid items-start gap-5 xl:grid-cols-[minmax(0,27rem)_minmax(0,1fr)]">
+  <div class="space-y-4">
+    <form
+      class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.05)] sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+      (submit)="$event.preventDefault(); generate()"
+    >
+      <fieldset [disabled]="planning.generating()" class="space-y-5">
+        <legend class="sr-only">Planning horizon</legend>
+
+        <div class="border-b border-slate-100 pb-4 dark:border-slate-800">
+          <p
+            class="text-[10px] font-bold tracking-[0.15em] text-rail-blue uppercase dark:text-sky-400"
+          >
+            Plan configuration
+          </p>
+          <h2 class="mt-1 text-lg font-bold tracking-tight text-rail-navy dark:text-white">
+            Build a safe planning horizon
+          </h2>
+          <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            The same inputs also create a department-by-department baseline for an honest
+            comparison.
+          </p>
+        </div>
+
+        <div>
+          <span class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200"
+            ><span
+              class="icon-frame grid h-7 w-7 place-items-center rounded-lg bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+              ><app-icon name="calendar-days" size="h-3.5 w-3.5" /></span
+            >How far ahead?</span
+          >
+
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            @for (option of horizonOptions; track option.value) {
+              <label
+                class="cursor-pointer rounded-xl border p-3.5 transition focus-within:ring-2 focus-within:ring-rail-blue"
+                [class]="
+                  plannerForm.horizonType().value() === option.value
+                    ? 'border-rail-blue bg-rail-blue/5 dark:border-sky-500 dark:bg-sky-500/10'
+                    : 'border-slate-300 hover:border-slate-400 dark:border-slate-600 dark:hover:border-slate-500'
+                "
+              >
+                <input
+                  type="radio"
+                  name="horizonType"
+                  class="sr-only"
+                  [value]="option.value"
+                  [checked]="plannerForm.horizonType().value() === option.value"
+                  (change)="setHorizonType(option.value)"
+                />
+                <span class="flex items-center gap-1.5">
+                  <span
+                    class="icon-frame grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-sky-50 text-rail-blue dark:bg-sky-950/50 dark:text-sky-400"
+                  >
+                    <app-icon [name]="option.icon" size="h-3.5 w-3.5" />
+                  </span>
+                  <span class="text-sm font-semibold text-slate-900 dark:text-slate-50">{{
+                    option.label
+                  }}</span>
+                </span>
+                <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{
+                  option.detail
+                }}</span>
+              </label>
+            }
+          </div>
+        </div>
+
+        <div>
+          <label
+            for="horizon-start"
+            class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200"
+            ><span
+              class="icon-frame grid h-7 w-7 place-items-center rounded-lg bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+              ><app-icon name="calendar-cog" size="h-3.5 w-3.5" /></span
+            >Starting from</label
+          >
+          <input
+            id="horizon-start"
+            type="date"
+            [formField]="plannerForm.horizonStart"
+            class="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:border-slate-600 dark:bg-slate-800"
+            [attr.aria-invalid]="plannerForm.horizonStart().invalid()"
+            aria-describedby="horizon-start-help"
+          />
+
+          @if (plannerForm.horizonStart().touched() && plannerForm.horizonStart().invalid()) {
+            <p
+              class="mt-1.5 flex items-center gap-1.5 text-xs text-rail-red dark:text-red-400"
+              role="alert"
+            >
+              <app-icon name="circle-alert" size="h-3.5 w-3.5" />
+              @for (error of plannerForm.horizonStart().errors(); track $index) {
+                <span>{{ error.message }}</span>
+              }
+            </p>
+          }
+
+          <p
+            id="horizon-start-help"
+            class="mt-1.5 flex items-start gap-1.5 text-xs text-slate-500 dark:text-slate-400"
+          >
+            <app-icon name="calendar-days" size="h-3.5 w-3.5" class="mt-px" />
+            {{ horizonDescription() }}
+          </p>
+        </div>
+
+        <fieldset>
+          <legend
+            class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200"
+          >
+            <span
+              class="icon-frame grid h-7 w-7 place-items-center rounded-lg bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+              ><app-icon name="route" size="h-3.5 w-3.5" /></span
+            >Which corridors?
+          </legend>
+          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Leave all unticked to plan the whole network.
+          </p>
+
+          <div class="mt-2 space-y-1.5">
+            @for (corridor of maintenance.corridors(); track corridor.id) {
+              <label
+                class="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-rail-blue dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800/50"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="selectedCorridorIds().has(corridor.id)"
+                  (change)="toggleCorridor(corridor.id, $any($event.target).checked)"
+                  class="mt-0.5 rounded border-slate-400 accent-rail-blue focus-visible:outline-none"
+                />
+                <span class="min-w-0">
+                  <span class="block text-sm font-medium text-slate-800 dark:text-slate-100"
+                    >{{ corridor.code }} — {{ corridor.name }}</span
+                  >
+                  <span class="block text-xs text-slate-500 dark:text-slate-400"
+                    >Importance {{ corridor.importanceScore }} of 5</span
+                  >
+                </span>
+              </label>
+            } @empty {
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                No corridors loaded yet — load the data sources first.
+              </p>
+            }
+          </div>
+        </fieldset>
+
+        <button
+          type="submit"
+          [disabled]="!canSubmit()"
+          class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rail-blue px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#0d4f86] focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <app-icon
+            [name]="planning.generating() ? 'loader-circle' : 'sparkles'"
+            size="h-4 w-4"
+            [class.animate-spin]="planning.generating()"
+          />
+          {{ planning.generating() ? 'Building the plan' : 'Generate plan' }}
+        </button>
+      </fieldset>
+    </form>
+
+    @if (planning.error(); as message) {
+      <div
+        class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/60"
+        role="alert"
+      >
+        <p class="flex items-start gap-2 text-sm font-semibold text-red-800 dark:text-red-200">
+          <app-icon name="circle-x" size="h-4 w-4" class="mt-0.5" />
+          Could not build a plan
+        </p>
+        <p class="mt-1 pl-6 text-sm text-red-800 dark:text-red-200">{{ message }}</p>
+        <button
+          type="button"
+          (click)="planning.clearError()"
+          class="mt-2 ml-6 text-xs font-semibold text-red-800 underline focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none dark:text-red-200"
+        >
+          Dismiss
+        </button>
+      </div>
+    }
+  </div>
+
+  <div class="space-y-4">
+    @if (planning.generating()) {
+      <section
+        class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+        aria-live="polite"
+      >
+        <h2 class="text-sm font-semibold text-rail-navy dark:text-slate-50">Building the plan</h2>
+
+        <ol class="mt-3 space-y-2.5">
+          @for (stage of stages; track stage.label) {
+            <li class="flex items-start gap-2.5 text-sm">
+              <app-icon
+                [name]="stage.label === planning.stage() ? 'loader-circle' : 'circle-check'"
+                size="h-4 w-4"
+                [class]="
+                  stage.label === planning.stage()
+                    ? 'mt-0.5 animate-spin text-rail-blue dark:text-sky-400'
+                    : 'mt-0.5 text-slate-300 dark:text-slate-600'
+                "
+              />
+              <span>
+                <span class="block font-medium text-slate-800 dark:text-slate-100">{{
+                  stage.label
+                }}</span>
+                <span class="block text-xs text-slate-500 dark:text-slate-400">{{
+                  stage.detail
+                }}</span>
+              </span>
+            </li>
+          }
+        </ol>
+      </section>
+    } @else {
+      <section
+        class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      >
+        <p class="text-[10px] font-bold tracking-[0.15em] text-slate-500 uppercase">
+          Planning pipeline
+        </p>
+        <h2 class="mt-1 text-base font-bold text-rail-navy dark:text-slate-50">
+          What happens after Generate
+        </h2>
+
+        <ol class="mt-3 space-y-3">
+          @for (stage of stages; track stage.label) {
+            <li class="relative flex items-start gap-3 pb-1 text-sm">
+              <span
+                class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sky-50 text-[11px] font-bold text-rail-blue ring-1 ring-sky-100 dark:bg-sky-950/60 dark:text-sky-300 dark:ring-sky-900"
+                >{{ $index + 1 }}</span
+              >
+              <span>
+                <span class="block font-medium text-slate-800 dark:text-slate-100">{{
+                  stage.label
+                }}</span>
+                <span class="block text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{
+                  stage.detail
+                }}</span>
+              </span>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+
+    @if (planning.runs().length > 0) {
+      <section aria-labelledby="runs-heading">
+        <h2
+          id="runs-heading"
+          class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200"
+        >
+          <app-icon name="clock" size="h-4 w-4" class="text-slate-400" />
+          Earlier runs
+        </h2>
+
+        <div
+          class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900"
+        >
+          <table class="w-full min-w-lg text-left text-sm">
+            <caption class="sr-only">
+              Previous planning runs with horizon, status and solver
+            </caption>
+            <thead
+              class="border-b border-slate-200 bg-slate-50/90 text-[10px] tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300"
+            >
+              <tr>
+                <th scope="col" class="w-16 px-3 py-2.5 text-center font-semibold">S.No</th>
+                <th scope="col" class="px-3 py-2.5 font-semibold">Horizon</th>
+                <th scope="col" class="px-3 py-2.5 font-semibold">From</th>
+                <th scope="col" class="px-3 py-2.5 font-semibold">Status</th>
+                <th scope="col" class="px-4 py-2.5 font-semibold">Solver</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              @for (run of planning.runs(); track run.id) {
+                <tr>
+                  <td
+                    class="px-3 py-2.5 text-center text-xs font-semibold tabular-nums text-slate-400"
+                  >
+                    {{ $index + 1 }}
+                  </td>
+                  <td class="px-3 py-2.5 font-medium">{{ run.horizonType }}</td>
+                  <td class="px-3 py-2.5 text-xs whitespace-nowrap">
+                    {{ run.horizonStart.slice(0, 10) }}
+                  </td>
+                  <td class="px-3 py-2.5">
+                    <app-status-badge
+                      [label]="run.status"
+                      [tone]="
+                        run.status === 'COMPLETED'
+                          ? 'good'
+                          : run.status === 'FAILED'
+                            ? 'bad'
+                            : 'info'
+                      "
+                    />
+                  </td>
+                  <td class="px-4 py-2.5 text-xs">{{ run.solverType ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  </div>
+</div>

@@ -1,0 +1,233 @@
+<app-page-header
+  icon="scale"
+  [step]="4"
+  title="Coordinated vs department-by-department"
+  description="Compare coordinated planning against today’s department-by-department baseline using identical jobs, windows, durations, and safety rules."
+>
+  <a
+    routerLink="/planner"
+    class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:outline-none sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+  >
+    <app-icon name="sparkles" size="h-4 w-4" />
+    Generate another plan
+  </a>
+</app-page-header>
+
+<div class="space-y-6">
+  @if (store.error(); as message) {
+    <div
+      class="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200"
+      role="alert"
+    >
+      <app-icon name="circle-x" size="h-4 w-4" class="mt-0.5" />
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  @if (store.loading() && rows().length === 0) {
+    <app-loading-state message="Loading the comparison" />
+  } @else if (rows().length === 0) {
+    <app-empty-state
+      icon="scale"
+      title="Nothing to compare yet"
+      message="Generate a plan first — the baseline is built automatically alongside it."
+    >
+      <a
+        routerLink="/planner"
+        class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-rail-blue px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rail-navy focus-visible:ring-2 focus-visible:ring-rail-blue focus-visible:ring-offset-2 focus-visible:outline-none"
+      >
+        Open the block planner
+        <app-icon name="arrow-right" size="h-4 w-4" />
+      </a>
+    </app-empty-state>
+  } @else {
+    <section
+      class="relative overflow-hidden rounded-2xl bg-[#0a2942] p-5 text-white shadow-[0_14px_34px_rgba(8,29,48,0.15)] sm:p-6"
+      aria-labelledby="comparison-verdict-heading"
+    >
+      <div
+        class="pointer-events-none absolute -top-24 -right-20 h-64 w-64 rounded-full bg-sky-400/10 blur-2xl"
+      ></div>
+      <div class="relative flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <p class="text-[10px] font-bold tracking-[0.16em] text-sky-300 uppercase">
+            Comparison verdict
+          </p>
+          <h2
+            id="comparison-verdict-heading"
+            class="mt-2 text-2xl font-bold tracking-tight sm:text-3xl"
+          >
+            Coordination improved {{ improvedCount() }} of {{ rows().length }} measures
+          </h2>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+            Every difference below comes from coordination alone; the safety rules and available
+            windows are unchanged.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <span
+            class="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-300 ring-1 ring-inset ring-emerald-400/20"
+            >{{ improvedCount() }} better</span
+          >
+          <span
+            class="rounded-xl bg-red-400/10 px-3 py-2 text-xs font-bold text-red-300 ring-1 ring-inset ring-red-400/20"
+            >{{ regressedCount() }} worse</span
+          >
+        </div>
+      </div>
+    </section>
+
+    <!-- The two approaches, explained -->
+    <div class="grid gap-3 md:grid-cols-2">
+      <section
+        class="rounded-2xl border border-sky-200 bg-sky-50/70 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-sky-900 dark:bg-sky-950/30"
+      >
+        <h2 class="flex items-center gap-2 text-sm font-semibold text-rail-navy dark:text-slate-50">
+          <span
+            class="icon-frame grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-50 text-rail-blue dark:bg-sky-950/50 dark:text-sky-400"
+            ><app-icon name="sparkles" size="h-4 w-4"
+          /></span>
+          Coordinated plan
+        </h2>
+        <p class="mt-1.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+          One optimizer sees every department's work at once and puts compatible jobs into the same
+          possession, so the line closes fewer times.
+        </p>
+      </section>
+
+      <section
+        class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900"
+      >
+        <h2 class="flex items-center gap-2 text-sm font-semibold text-rail-navy dark:text-slate-50">
+          <span
+            class="icon-frame grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+            ><app-icon name="signpost" size="h-4 w-4"
+          /></span>
+          Today's process
+        </h2>
+        <p class="mt-1.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+          Each department books its own blocks in due-date order, unaware of what the others asked
+          for. A window taken by one is simply gone for the rest.
+        </p>
+      </section>
+    </div>
+
+    <!-- Headline wins -->
+    @if (headline().length > 0) {
+      <section aria-labelledby="headline-heading">
+        <h2
+          id="headline-heading"
+          class="mb-2.5 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200"
+        >
+          <app-icon name="trending-down" size="h-4 w-4" class="text-slate-400" />
+          The difference this makes
+        </h2>
+
+        <ul class="grid gap-3 sm:grid-cols-3">
+          @for (item of headline(); track item.key) {
+            <li
+              class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="icon-frame grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                  ><app-icon [name]="headlineIcon(item.key)" size="h-4 w-4"
+                /></span>
+                <p class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  {{ item.label }}
+                </p>
+              </div>
+              <p
+                class="mt-1.5 text-2xl leading-none font-semibold tabular-nums"
+                [class]="
+                  item.improved
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : 'text-rail-red dark:text-red-400'
+                "
+              >
+                {{ formatDelta(item) }}
+              </p>
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                {{ item.optimized }} coordinated vs {{ item.baseline }} today
+              </p>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <p class="sr-only">
+      <strong class="text-slate-900 dark:text-slate-50">{{ improvedCount() }}</strong> metric(s)
+      improved,
+      <strong class="text-slate-900 dark:text-slate-50">{{ regressedCount() }}</strong> got worse,
+      out of {{ rows().length }} measured.
+    </p>
+
+    <div
+      class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900"
+    >
+      <table class="w-full min-w-3xl text-left text-sm">
+        <caption class="sr-only">
+          Coordinated versus department-by-department plan metrics with numeric deltas
+        </caption>
+        <thead
+          class="border-b border-slate-200 bg-slate-50/90 text-[10px] tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300"
+        >
+          <tr>
+            <th scope="col" class="w-16 px-3 py-2.5 text-center font-semibold">S.No</th>
+            <th scope="col" class="px-3 py-2.5 font-semibold">Measure</th>
+            <th scope="col" class="px-4 py-2.5 text-right font-semibold">Coordinated</th>
+            <th scope="col" class="px-4 py-2.5 text-right font-semibold">Today</th>
+            <th scope="col" class="px-4 py-2.5 text-right font-semibold">Change</th>
+            <th scope="col" class="px-4 py-2.5 font-semibold">Verdict</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          @for (row of rows(); track row.key) {
+            <tr class="transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="px-3 py-3 text-center text-xs font-semibold tabular-nums text-slate-400">
+                {{ $index + 1 }}
+              </td>
+              <th scope="row" class="px-3 py-3 text-left font-medium">
+                {{ row.label }}
+                <span class="mt-0.5 block text-xs font-normal text-slate-500 dark:text-slate-400">
+                  {{ row.higherIsBetter ? 'Higher is better' : 'Lower is better' }}
+                </span>
+              </th>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ row.optimized }}</td>
+              <td class="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-400">
+                {{ row.baseline }}
+              </td>
+              <td class="px-4 py-3 text-right font-medium tabular-nums" [class]="deltaClass(row)">
+                {{ formatDelta(row) }}
+              </td>
+              <td class="px-4 py-3">
+                @if (row.improved === null) {
+                  <app-status-badge label="No change" tone="neutral" />
+                } @else if (row.improved) {
+                  <app-status-badge label="Better" tone="good" icon="circle-check" />
+                } @else {
+                  <app-status-badge label="Worse" tone="bad" icon="circle-x" />
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <p
+      class="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+    >
+      <app-icon name="info" size="h-3.5 w-3.5" class="mt-0.5" />
+      <span>
+        Critical coverage sits on its own row and is never folded into the track-time figure: a plan
+        that closes the line for less time is not better if it leaves more critical work undone. On
+        a long horizon the optimizer may also schedule fewer jobs overall, declining low-priority
+        work whose possession costs more availability than the risk it removes. Both plans were
+        independently re-checked against protected train paths, power isolation and disconnection
+        availability before being stored.
+      </span>
+    </p>
+  }
+</div>

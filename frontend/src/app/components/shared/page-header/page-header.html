@@ -1,0 +1,37 @@
+<div class="mb-7 flex flex-wrap items-end justify-between gap-5">
+  <div class="flex w-full min-w-0 items-start gap-3.5 sm:w-auto sm:flex-1">
+    <span
+      class="icon-frame mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-rail-blue dark:bg-sky-950/50 dark:text-sky-400"
+    >
+      <app-icon [name]="icon()" size="h-5 w-5" />
+    </span>
+
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-2.5">
+        @if (step() !== null) {
+          <span
+            class="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase dark:bg-slate-700"
+            >Step {{ step() }}</span
+          >
+        }
+        <h1
+          class="text-2xl font-bold tracking-[-0.025em] text-rail-navy sm:text-[1.75rem] dark:text-white"
+        >
+          {{ title() }}
+        </h1>
+      </div>
+
+      @if (description()) {
+        <p class="mt-1.5 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+          {{ description() }}
+        </p>
+      }
+    </div>
+  </div>
+
+  <div
+    class="flex w-full flex-col gap-2 sm:w-auto sm:shrink-0 sm:flex-row sm:flex-wrap sm:items-center"
+  >
+    <ng-content />
+  </div>
+</div>

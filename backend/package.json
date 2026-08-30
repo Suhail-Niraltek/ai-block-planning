@@ -1,16 +1,26 @@
 {
-  "name": "backend",
+  "name": "ai-block-planning-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "SIH26027 AI-powered automatic block planning - Express + MySQL backend",
+  "main": "src/server.js",
   "scripts": {
-
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node src/database/migrate.js",
+    "seed": "node src/database/seed.js",
+    "test": "node --test"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "express": "^5.2.1"
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "glpk.js": "^5.0.0",
+    "mysql2": "^3.24.2",
+    "zod": "^4.5.4"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

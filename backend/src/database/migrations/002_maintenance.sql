@@ -1,0 +1,102 @@
+-- Maintenance: defects, unified tasks, and historical outcomes.
+
+CREATE TABLE IF NOT EXISTS defects (
+  id CHAR(36) NOT NULL,
+  source_system_id CHAR(36) NOT NULL,
+  external_id VARCHAR(96) NOT NULL,
+  asset_id CHAR(36) NOT NULL,
+  defect_type VARCHAR(64) NOT NULL,
+  severity ENUM('LOW','MEDIUM','HIGH','CRITICAL') NOT NULL DEFAULT 'MEDIUM',
+  detected_at DATETIME(3) NOT NULL,
+  due_at DATETIME(3) NOT NULL,
+  safety_critical TINYINT(1) NOT NULL DEFAULT 0,
+  speed_restriction_kmph SMALLINT UNSIGNED NULL,
+  description VARCHAR(500) NULL,
+  status ENUM('OPEN','CLOSED') NOT NULL DEFAULT 'OPEN',
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_defects_source_external (source_system_id, external_id),
+  KEY ix_defects_asset (asset_id),
+  KEY ix_defects_severity (severity),
+  KEY ix_defects_status (status),
+  KEY ix_defects_due_at (due_at),
+  KEY ix_defects_detected_at (detected_at),
+  CONSTRAINT fk_defects_source FOREIGN KEY (source_system_id)
+    REFERENCES source_systems (id) ON DELETE CASCADE,
+  CONSTRAINT fk_defects_asset FOREIGN KEY (asset_id)
+    REFERENCES assets (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS maintenance_tasks (
+  id CHAR(36) NOT NULL,
+  source_system_id CHAR(36) NOT NULL,
+  external_id VARCHAR(96) NOT NULL,
+  defect_id CHAR(36) NULL,
+  asset_id CHAR(36) NOT NULL,
+  section_id CHAR(36) NOT NULL,
+  department ENUM('ENG','TRD','SNT') NOT NULL,
+  task_type VARCHAR(64) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  earliest_start DATETIME(3) NOT NULL,
+  due_at DATETIME(3) NOT NULL,
+  requested_duration_minutes SMALLINT UNSIGNED NOT NULL,
+  predicted_duration_minutes SMALLINT UNSIGNED NULL,
+  predicted_duration_sample_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  requires_line_block TINYINT(1) NOT NULL DEFAULT 0,
+  requires_power_block TINYINT(1) NOT NULL DEFAULT 0,
+  requires_disconnection TINYINT(1) NOT NULL DEFAULT 0,
+  severity ENUM('LOW','MEDIUM','HIGH','CRITICAL') NOT NULL DEFAULT 'MEDIUM',
+  criticality TINYINT UNSIGNED NOT NULL DEFAULT 3,
+  safety_critical TINYINT(1) NOT NULL DEFAULT 0,
+  speed_restriction_kmph SMALLINT UNSIGNED NULL,
+  repeat_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  days_overdue INT NOT NULL DEFAULT 0,
+  priority_score DECIMAL(5,2) NOT NULL DEFAULT 0,
+  priority_source ENUM('ML','RULE_FALLBACK') NOT NULL DEFAULT 'RULE_FALLBACK',
+  priority_reasons_json JSON NULL,
+  status ENUM('READY','PLANNED','COMPLETED','DEFERRED') NOT NULL DEFAULT 'READY',
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tasks_source_external (source_system_id, external_id),
+  KEY ix_tasks_section (section_id),
+  KEY ix_tasks_asset (asset_id),
+  KEY ix_tasks_defect (defect_id),
+  KEY ix_tasks_department (department),
+  KEY ix_tasks_severity (severity),
+  KEY ix_tasks_status (status),
+  KEY ix_tasks_due_at (due_at),
+  KEY ix_tasks_earliest_start (earliest_start),
+  KEY ix_tasks_priority (priority_score),
+  CONSTRAINT fk_tasks_source FOREIGN KEY (source_system_id)
+    REFERENCES source_systems (id) ON DELETE CASCADE,
+  CONSTRAINT fk_tasks_asset FOREIGN KEY (asset_id)
+    REFERENCES assets (id) ON DELETE CASCADE,
+  CONSTRAINT fk_tasks_section FOREIGN KEY (section_id)
+    REFERENCES sections (id) ON DELETE CASCADE,
+  CONSTRAINT fk_tasks_defect FOREIGN KEY (defect_id)
+    REFERENCES defects (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS maintenance_history (
+  id CHAR(36) NOT NULL,
+  task_type VARCHAR(64) NOT NULL,
+  department ENUM('ENG','TRD','SNT') NOT NULL,
+  asset_criticality TINYINT UNSIGNED NOT NULL,
+  severity ENUM('LOW','MEDIUM','HIGH','CRITICAL') NOT NULL,
+  days_overdue_at_planning INT NOT NULL DEFAULT 0,
+  safety_critical TINYINT(1) NOT NULL DEFAULT 0,
+  speed_restriction_kmph SMALLINT UNSIGNED NULL,
+  corridor_importance TINYINT UNSIGNED NOT NULL DEFAULT 3,
+  repeat_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  requested_duration_minutes SMALLINT UNSIGNED NOT NULL,
+  actual_duration_minutes SMALLINT UNSIGNED NOT NULL,
+  failure_or_escalation_before_work TINYINT(1) NOT NULL DEFAULT 0,
+  completed_at DATETIME(3) NOT NULL,
+  data_origin ENUM('SYNTHETIC','REAL') NOT NULL DEFAULT 'SYNTHETIC',
+  PRIMARY KEY (id),
+  KEY ix_history_task_type (task_type, department),
+  KEY ix_history_completed_at (completed_at),
+  KEY ix_history_outcome (failure_or_escalation_before_work)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
