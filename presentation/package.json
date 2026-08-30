@@ -1,0 +1,12 @@
+{
+  "name": "railplan-ai-presentation",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node generate-presentation.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "4.0.1"
+  }
+}
